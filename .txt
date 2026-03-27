@@ -1,0 +1,206 @@
+RailGuard AI:
+AI-Powered Railway Surveillance for Safety & Security Monitoring 
+By Team: TrustNet
+
+Vision:
+A unified, real-time AI safety intelligence platform for Indian Railways; transforming CCTV cameras, GPS streams, and IoT sensors into a single Safety Operations Centre (SOC) that sees threats before they become incidents.
+Unique Selling Proposition (USP):  
+
+What makes RailGuard AI different?
+•	Unifies CCTV + RTIS GPS + SMART IoT + Kavach ATP into a single real-time safety view
+•	Explainable AI: every alert shows SHAP values so operators  
+understand why the alert fired
+•	Built entirely on free, open-source technology, zero licence cost
+•	Designed for India's existing infrastructure; Pravah API + Kavach + RTIS as data sources
+•	15-minute predictive crowd surge warning before trains arrive	Problems it solves: 
+•	Eliminates data silos between 8 IR functional verticals
+•	Replaces reactive manual monitoring with proactive AI alerts
+•	Adds software intelligence layer above India's ₹15,000 cr CCTV rollout
+•	Addresses 4 of 7 critical pitfalls in India's railway data ecosystem
+•	Directly responds to the IndiaAI Mission mandate for railway surveillance AI
+Objectives
+
+•	Use computer vision for real-time passenger behaviour monitoring and threat detection
+•	Implement predictive analytics to forecast safety incidents 15 minutes ahead
+•	Integrate seamlessly with existing IR systems via Pravah API, RTIS, and Kafka connectors
+•	Provide a unified SOC dashboard with role-based views for station masters, RPF officers, and national ops
+•	Automate incident response with severity-based routing, SLA timers, and multi-channel notifications
+
+
+System Architecture & Tech Stack
+Architecture overview 
+Layer 1
+Data sources	 AI CCTV cameras   RTIS GPS (14M events/day)  SMART IoT sensors  Kavach ATP events  PRS booking data (via Pravah)
+Layer 2
+Ingestion	Apache Kafka event bus  Kafka Connect + Pravah API connectors  Confluent Schema Registry (Avro contracts)   Apache Spark Streaming
+Layer 3
+AI / ML	YOLOv8 (object + threat detection)   CSRNet (crowd density)    MediaPipe (behaviour / pose)    XGBoost + SHAP (risk scoring)    MLflow (model management)
+Layer 4
+Backend	FastAPI + Socket.io (WebSocket bridge)   Celery + Redis (alert workers + SLA timers)    FCM push + ntfy.sh (notifications)    PostgreSQL + ClickHouse + Delta Lake (storage)
+Layer 5
+Dashboard	React + Next.js    Grafana embedded panels   Leaflet.js (network risk map)   D3.js (crowd heatmaps)    Keycloak RBAC (3 role-based views)
+
+Tech stack 
+Category	Technology	Licence
+Frontend	React, Next.js, Socket.io, Leaflet.js, D3.js, Recharts	MIT
+AI / Vision	YOLOv8 (Ultralytics), CSRNet (PyTorch), MediaPipe	AGPL-3.0 / MIT
+ML / Analytics	XGBoost, SHAP, MLflow, Apache Spark	Apache 2.0
+Streaming	Apache Kafka, Kafka Connect, Schema Registry	Apache 2.0
+Backend	FastAPI, Celery, Redis, Node.js	MIT / BSD
+Storage	PostgreSQL, ClickHouse, Delta Lake, MinIO	Apache 2.0
+Infra	Docker, Keycloak, Prometheus, Grafana	Apache 2.0 / AGPL
+Notifications	Firebase FCM (free tier), ntfy.sh	Free / Apache 2.0
+ 
+
+
+
+
+
+
+
+
+
+
+System Features 
+
+Frontend — React Dashboard
+The operator-facing dashboard is built in React and consists of two rows of specialized panels:
+•	Live Alert Queue — displays real-time, severity-sorted incident alerts with acknowledgment and escalation workflows.
+•	Platform Heatmap — visualizes crowd density per zone with live updates to prevent overcrowding incidents.
+•	Network Risk Map — a Leaflet-based geospatial map overlaying route-level risk scores across the rail network.
+•	Camera Feed Panel — streams live RTSP camera feeds with AI-generated bounding box overlays for object/person detection.
+•	Train Status Panel — shows real-time RTIS train positions, delays, and Kavach (collision avoidance) system status.
+•	Grafana Panels — embeds time-series sensor trend dashboards for infrastructure health monitoring.
+•	Incident Log — maintains a full audit trail of all events including response times for post-incident review.
+•	Role-Based Views — tailors the dashboard UI for three access levels: Station staff, RPF (Railway Protection Force), and National Ops.
+ 
+Backend Services
+•	WebSocket Server — enables real-time data push to the dashboard using Socket.io, acting as a Kafka consumer bridge from sensor/camera streams.
+•	 FastAPI REST Layer — handles authentication, historical data queries, and system configuration. 
+•	 Alert Engine — runs Celery workers to evaluate incoming data against configurable severity rules and SLA thresholds. 
+•	 Notification Dispatcher — delivers multi-channel alerts via FCM push notifications, Twilio SMS, and PA (Public Address) system API integration. 
+
+ 
+ Data and ML Layer: 
+•	Kafka— Five dedicated topics partition every data stream by domain; CCTV, GPS, IoT, signalling, and alerts, keeping sources fully decoupled so any component can be added or removed without touching the pipeline.
+•	ML model Server — Four models run in parallel: YOLOv8 for threat detection, CSRNet for crowd density, MediaPipe for behaviour, and XGBoost+SHAP for explainable risk scoring,  all served via a single FastAPI inference endpoint.
+•	Databases— .Four purpose-selected stores handle distinct workloads: PostgreSQL for incidents, Redis for real-time ML features and SLA timers, ClickHouse for high-speed time-series analytics, and Delta Lake for immutable long-term audit storage.
+•	Observability —  Prometheus and Grafana monitor end-to-end alert latency SLAs, Kafka consumer lag, and model drift ensuring the system meets its sub-2-second detection-to-dashboard target at all times.
+
+
+ 
+
+
+
+
+ 
+
+
+
+
+
+
+
+
+
+
+
+Integration
+
+● HIGH RISK     ● MEDIUM RISK     → Fix / Recommendation
+
+⚡ 1. Data Flow & Pipeline   ● HIGH
+Camera & sensors → Kafka → WebSocket → React dashboard
+Kafka broker failure kills Alert Queue, Heatmap & Camera Feed simultaneously
+→ Add dead-letter queues + Socket.io auto-reconnect logic
+
+🔗 2. API Contract   ● MEDIUM
+FastAPI serves REST (auth, history, config) + WebSocket pushes live events
+Schema drift between FastAPI & React causes silent data gaps in panels
+→ Generate TypeScript types from OpenAPI spec; validate WebSocket payloads with Zod
+
+🚨 3. Alert Lifecycle   ● HIGH
+Sensor event → Kafka → Celery worker → severity check → SLA timer → dispatch
+Celery crash mid-task silently drops the alert with no retry
+→ Enable Celery retries with exponential backoff; persist alert state before dispatch
+
+🕸 4. Cross-Component Dependencies   ● HIGH
+WebSocket Server is a single point of failure for 4 live panels at once
+Grafana & Incident Log are independent — safe if core backend fails
+→ Add WebSocket redundancy with Redis adapter + sticky-session load balancing
+
+🔐 5. Role-Based Access & Security   ● MEDIUM
+3 roles: Station Staff · RPF Officers · National Ops
+Role-only JWT tokens allow cross-zone API queries by station staff
+→ Embed zoneId in JWT; enforce zone filtering server-side in FastAPI
+
+🌐 6. Third-Party Integrations   ● MEDIUM
+FCM push · Twilio SMS · PA system API · Grafana · Leaflet tiles
+No unified retry/fallback across all three notification channels
+→ Build a single dispatch queue with per-channel retry policies
+
+📈 7. Scalability & Load   ● MEDIUM
+WebSocket ~10K conn limit · Celery workers must match Kafka partitions
+RTSP stream AI inference is CPU-heavy — shares resources with API layer
+→ Offload GPU inference to dedicated worker pool; load test at 500 ops + 200 feeds 
+Challenges, Benefits & Feasibility:
+
+
+
+
+
+
+
+ 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+5. Implementation Roadmap: 
+
+Phase	Deliverables
+Phase 1 Foundation
+Weeks 1–2	•	Set up Docker Compose stack: Kafka, Redis, PostgreSQL, ClickHouse
+•	Build Kafka producers for simulated CCTV metadata, RTIS GPS, and SMART sensor events
+•	Implement Avro schema registry and validate data contracts
+•	Create FastAPI backend with WebSocket (Socket.io) bridge to Kafka
+Phase 2 AI / ML core
+Weeks 3–4	•	Integrate YOLOv8 for real-time object and threat detection on video feed
+•	Deploy CSRNet for platform crowd density estimation from overhead camera
+•	Train XGBoost risk model on synthetic RTIS + weather feature set
+•	Add SHAP explanations — display feature importance alongside every alert
+•	Register all models in MLflow with zone-specific variant support
+Phase 3 Dashboard 
+Weeks 5–6
+	•	Build React SOC dashboard — live alert queue, crowd heatmap, train status panel
+•	Embed Grafana time-series panels for sensor analytics
+•	Implement Leaflet.js India rail network risk map with colour-coded route scores
+•	Add Keycloak RBAC — station master, RPF officer, national ops role views
+•	Connect all panels to WebSocket for sub-second live updates
+Phase 4 Response & Integration 
+Weeks 7–8
+	•	Build Celery-based alert orchestration engine with L1/L2/L3 playbooks
+•	Implement FCM push notifications to staff mobile app (React Native)
+•	Connect Pravah API (or simulated equivalent) as live data source
+•	Add full incident audit log — detection → notification → acknowledgement → resolution
+•	Stress test Kafka pipeline at simulated 14M events/day throughput
+Phase 5 Demo & Polish 
+Weeks 9–10
+	•	Record end-to-end demo: threat detected → SOC alert → RPF notified → acknowledged
+•	Prepare live demo on single laptop — fully self-contained Docker Compose
+•	Generate sample SHAP explanation report for a risk score alert
+•	Document API endpoints, architecture diagram, and deployment guide
+•	Prepare hackathon presentation deck with live system walkthrough
+
+
