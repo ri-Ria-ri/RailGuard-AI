@@ -1,7 +1,7 @@
 RailGuard AI:
 AI-Powered Railway Surveillance for Safety & Security Monitoring 
 By Team: TrustNet
-
+Ria Mahamuni ‖ Ruchita Pakale ‖ Samruddhi Patil
 Vision:
 A unified, real-time AI safety intelligence platform for Indian Railways; transforming CCTV cameras, GPS streams, and IoT sensors into a single Safety Operations Centre (SOC) that sees threats before they become incidents.
 Unique Selling Proposition (USP):  
