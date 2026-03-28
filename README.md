@@ -1,4 +1,4 @@
-# RailGuard AI - Starter Scaffold
+# RailGuard AI 
 
 This scaffold gives you a working first milestone:
 
