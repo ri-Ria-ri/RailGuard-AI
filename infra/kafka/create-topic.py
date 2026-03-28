@@ -11,7 +11,7 @@ from kafka.admin import KafkaAdminClient, NewTopic
 from kafka.errors import TopicAlreadyExistsError
 
 # ── Config ────────────────────────────────────────────────────────────────────
-KAFKA_BOOTSTRAP = "kafka:9092"          # use 'localhost:9092' if running locally
+KAFKA_BOOTSTRAP = "kafka:29092"         # use 'localhost:9092' if running locally
 SCHEMA_REGISTRY  = "http://schema-registry:8081"  # adjust host if needed
 RETRIES          = 10                   # retry attempts while Kafka boots
 RETRY_DELAY      = 5                    # seconds between retries
@@ -21,15 +21,10 @@ RETRY_DELAY      = 5                    # seconds between retries
 # 3 partitions = parallelism across 3 consumer instances
 # replication_factor=1 is fine for local dev; use 3 in production
 TOPICS = [
--    NewTopic(name="cctv-events",    num_partitions=3, replication_factor=1),
--    NewTopic(name="rtis-gps",       num_partitions=3, replication_factor=1),
--    NewTopic(name="smart-iot",      num_partitions=3, replication_factor=1),
--    NewTopic(name="kavach-signals", num_partitions=3, replication_factor=1),
--    NewTopic(name="alerts",         num_partitions=3, replication_factor=1),
-+    NewTopic(name="railguard.alerts",  num_partitions=3, replication_factor=1),
-+    NewTopic(name="railguard.crowd",   num_partitions=3, replication_factor=1),
-+    NewTopic(name="railguard.trains",  num_partitions=3, replication_factor=1),
-+    NewTopic(name="railguard.cameras", num_partitions=3, replication_factor=1),
+    NewTopic(name="railguard.alerts",  num_partitions=3, replication_factor=1),
+    NewTopic(name="railguard.crowd",   num_partitions=3, replication_factor=1),
+    NewTopic(name="railguard.trains",  num_partitions=3, replication_factor=1),
+    NewTopic(name="railguard.cameras", num_partitions=3, replication_factor=1),
  ]
 
 # ── Avro schemas ──────────────────────────────────────────────────────────────
@@ -91,50 +86,6 @@ SCHEMAS = {
         ]
     },
 
-    "smart-iot-value": {
-        "type": "record",
-        "name": "SmartIoTReading",
-        "namespace": "ai.railguard",
-        "doc": "Sensor reading from a station IoT device",
-        "fields": [
-            {"name": "sensor_id",    "type": "string"},
-            {"name": "sensor_type",  "type": {
-                "type": "enum",
-                "name": "SensorType",
-                "symbols": ["CROWD_COUNTER", "SMOKE", "FIRE", "TEMPERATURE",
-                            "VIBRATION", "FLOOD", "POWER"]
-            }},
-            {"name": "station_code", "type": "string"},
-            {"name": "zone_id",      "type": "string"},
-            {"name": "platform_no",  "type": "int"},
-            {"name": "timestamp_ms", "type": "long"},
-            {"name": "value",        "type": "double", "doc": "Raw sensor value in SI units"},
-            {"name": "unit",         "type": "string", "doc": "e.g. celsius, ppm, count"},
-            {"name": "threshold_breached", "type": "boolean"}
-        ]
-    },
-
-    "kavach-signals-value": {
-        "type": "record",
-        "name": "KavachSignalEvent",
-        "namespace": "ai.railguard",
-        "doc": "Kavach ATP system signal state update",
-        "fields": [
-            {"name": "signal_id",     "type": "string"},
-            {"name": "train_no",      "type": "string"},
-            {"name": "zone_id",       "type": "string"},
-            {"name": "timestamp_ms",  "type": "long"},
-            {"name": "signal_state",  "type": {
-                "type": "enum",
-                "name": "SignalState",
-                "symbols": ["GREEN", "YELLOW", "RED", "SOS", "LOCO_PILOT_OVERRIDE"]
-            }},
-            {"name": "speed_limit_kmh", "type": "int"},
-            {"name": "brake_applied",   "type": "boolean"},
-            {"name": "location_marker", "type": "string", "doc": "Track chainage reference"}
-        ]
-    },
-
     "railguard.alerts-value": {
         "type": "record",
         "name": "RailGuardAlert",
@@ -164,6 +115,24 @@ SCHEMAS = {
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
+
+def validate_topic_schema_consistency(topics: list[NewTopic], schemas: dict[str, dict]) -> None:
+    """Fail fast when schema subject names diverge from configured Kafka topics."""
+    topic_names = {topic.name for topic in topics}
+    expected_subjects = {f"{topic_name}-value" for topic_name in topic_names}
+    actual_subjects = set(schemas.keys())
+
+    missing_subjects = sorted(expected_subjects - actual_subjects)
+    extra_subjects = sorted(actual_subjects - expected_subjects)
+
+    if missing_subjects or extra_subjects:
+        errors = []
+        if missing_subjects:
+            errors.append(f"missing schema subjects: {', '.join(missing_subjects)}")
+        if extra_subjects:
+            errors.append(f"unexpected schema subjects: {', '.join(extra_subjects)}")
+        raise ValueError("Topic/schema consistency check failed: " + " | ".join(errors))
+
 
 def wait_for_kafka(bootstrap: str, retries: int, delay: int) -> KafkaAdminClient:
     """Retry connecting to Kafka until it's ready (it takes a few seconds to boot)."""
@@ -229,6 +198,10 @@ def register_schema(registry_url: str, subject: str, schema: dict) -> int:
 def main():
     print("\n━━━ RailGuard AI — Kafka Init ━━━\n")
 
+    # 0. Ensure topic names and schema subjects stay aligned.
+    validate_topic_schema_consistency(TOPICS, SCHEMAS)
+    print("✅ Topic/schema consistency check passed")
+
     # 1. Connect to Kafka and create topics
     admin = wait_for_kafka(KAFKA_BOOTSTRAP, RETRIES, RETRY_DELAY)
     create_topics(admin, TOPICS)
@@ -241,7 +214,7 @@ def main():
     for subject, schema in SCHEMAS.items():
         register_schema(SCHEMA_REGISTRY, subject, schema)
 
-    print("\n🚀 Kafka setup complete — all 5 topics and schemas are ready.\n")
+    print("\n🚀 Kafka setup complete — all 4 topics and schemas are ready.\n")
 
 
 if __name__ == "__main__":
