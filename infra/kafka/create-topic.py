@@ -21,12 +21,16 @@ RETRY_DELAY      = 5                    # seconds between retries
 # 3 partitions = parallelism across 3 consumer instances
 # replication_factor=1 is fine for local dev; use 3 in production
 TOPICS = [
-    NewTopic(name="cctv-events",      num_partitions=3, replication_factor=1),
-    NewTopic(name="rtis-gps",         num_partitions=3, replication_factor=1),
-    NewTopic(name="smart-iot",        num_partitions=3, replication_factor=1),
-    NewTopic(name="kavach-signals",   num_partitions=3, replication_factor=1),
-    NewTopic(name="alerts",           num_partitions=3, replication_factor=1),
-]
+-    NewTopic(name="cctv-events",    num_partitions=3, replication_factor=1),
+-    NewTopic(name="rtis-gps",       num_partitions=3, replication_factor=1),
+-    NewTopic(name="smart-iot",      num_partitions=3, replication_factor=1),
+-    NewTopic(name="kavach-signals", num_partitions=3, replication_factor=1),
+-    NewTopic(name="alerts",         num_partitions=3, replication_factor=1),
++    NewTopic(name="railguard.alerts",  num_partitions=3, replication_factor=1),
++    NewTopic(name="railguard.crowd",   num_partitions=3, replication_factor=1),
++    NewTopic(name="railguard.trains",  num_partitions=3, replication_factor=1),
++    NewTopic(name="railguard.cameras", num_partitions=3, replication_factor=1),
+ ]
 
 # ── Avro schemas ──────────────────────────────────────────────────────────────
 # Each schema is registered under the subject "<topic-name>-value"
@@ -34,7 +38,7 @@ TOPICS = [
 
 SCHEMAS = {
 
-    "cctv-events-value": {
+    "railguard.cameras-value": {
         "type": "record",
         "name": "CCTVEvent",
         "namespace": "ai.railguard",
@@ -54,7 +58,7 @@ SCHEMAS = {
         ]
     },
 
-    "rtis-gps-value": {
+    "railguard.trains-value": {
         "type": "record",
         "name": "RTISGPSEvent",
         "namespace": "ai.railguard",
@@ -70,6 +74,20 @@ SCHEMAS = {
             {"name": "delay_mins",   "type": "int",    "doc": "Positive = late, negative = early"},
             {"name": "next_station", "type": "string"},
             {"name": "kavach_active","type": "boolean","doc": "Whether Kavach ATP is engaged"}
+        ]
+    },
+
+    "railguard.crowd-value": {
+        "type": "record",
+        "name": "CrowdEvent",
+        "namespace": "ai.railguard",
+        "doc": "Crowd density event from a station",
+        "fields": [
+            {"name": "station_code", "type": "string"},
+            {"name": "zone_id",      "type": "string"},
+            {"name": "platform_no",  "type": "int"},
+            {"name": "timestamp_ms", "type": "long"},
+            {"name": "crowd_count",  "type": "int"}
         ]
     },
 
@@ -117,7 +135,7 @@ SCHEMAS = {
         ]
     },
 
-    "alerts-value": {
+    "railguard.alerts-value": {
         "type": "record",
         "name": "RailGuardAlert",
         "namespace": "ai.railguard",
@@ -141,7 +159,7 @@ SCHEMAS = {
             {"name": "acknowledged",  "type": "boolean", "default": False},
             {"name": "ack_by",        "type": ["null", "string"], "default": None}
         ]
-    }
+    } 
 }
 
 
