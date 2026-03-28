@@ -83,7 +83,7 @@ RailGuard AI/
 
 ---
 
-### ✅ **Task 1: Create 3 New Kafka Topics** (30 minutes)
+### ✅ **Task 1: Create 3 New Kafka Topics** (30 minutes)-----created 4 topics
 
 #### What is a Kafka topic?
 Think of topics like TV channels. Each channel broadcasts different content:
@@ -3909,3 +3909,1880 @@ services/
 **Congratulations! Your hackathon demo is ready! 🎉**
 
 Good luck with your presentation!
+
+---
+
+# DAY 3 (Post-Day-2) (4-6 hours)
+## 🚀 Hardening, Packaging & Winning the Final Evaluation
+
+**What we're doing now:** Turning your completed Day 2 demo into a dependable, repeatable, judge-ready system that can survive live questions, retries, and last-minute environment issues.
+
+**Why this matters:** Most teams fail in the final 10% due to startup issues, broken links, inconsistent data, or unclear handoff docs. This phase removes those risks.
+
+---
+
+## 🎯 **Day 3 Goals**
+
+By the end of this guide, you will have:
+- A one-command startup flow for your full stack
+- A stability checklist to avoid live-demo failures
+- A fallback plan when internet/services fail during judging
+- A complete submission pack (docs + script + screenshots + architecture)
+- A confident Q&A strategy with technical proof points
+
+---
+
+### ✅ **Task 19: Freeze a Stable Demo Build** (30 minutes)
+
+#### What we're doing:
+Locking your app into a known-good state before adding anything else.
+
+#### Step 19.1: Create a Demo Branch
+
+```bash
+git checkout -b demo/final-evaluation
+```
+
+#### Step 19.2: Pin all dependencies
+
+For Python services:
+```bash
+pip freeze > services/backend/requirements-lock.txt
+pip freeze > services/ingestion/simulator/requirements-lock.txt
+```
+
+For frontend:
+```bash
+cd services/frontend
+npm install
+npm shrinkwrap
+```
+
+#### Step 19.3: Verify deterministic container build
+
+```bash
+docker compose -f infra/docker-compose.yml build --no-cache
+docker compose -f infra/docker-compose.yml up -d
+docker compose -f infra/docker-compose.yml ps
+```
+
+Expected result:
+- All containers show `Up`
+- Frontend opens on `http://localhost:5173`
+- Backend responds on `http://localhost:8000/docs`
+
+---
+
+### ✅ **Task 20: Add Environment Profiles (Local + Demo + Offline)** (45 minutes)
+
+#### What we're doing:
+Creating configuration profiles so you can switch modes without editing code.
+
+#### Step 20.1: Create env templates
+
+Create `services/backend/.env.example`:
+```env
+APP_ENV=demo
+LOG_LEVEL=info
+KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+POSTGRES_HOST=postgres
+POSTGRES_PORT=5432
+POSTGRES_DB=railguard
+POSTGRES_USER=railguard
+POSTGRES_PASSWORD=railguard
+```
+
+Create `services/frontend/.env.example`:
+```env
+VITE_API_BASE_URL=http://localhost:8000
+VITE_WS_URL=ws://localhost:8000/ws/alerts
+VITE_WS_URL_CROWD=ws://localhost:8000/ws/crowd
+VITE_WS_URL_TRAINS=ws://localhost:8000/ws/trains
+```
+
+Create `services/ingestion/simulator/.env.example`:
+```env
+KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+SIM_ALERT_INTERVAL=5
+SIM_CROWD_INTERVAL=2
+SIM_TRAINS_INTERVAL=30
+```
+
+#### Step 20.2: Make an offline profile for internet outages
+
+Create `infra/docker-compose.offline.yml` with:
+- Local static map tiles fallback (or map panel disabled)
+- Camera panel using local images from `public/cameras`
+- No external dependencies in runtime path
+
+#### Step 20.3: Document profile usage
+
+Add this to README:
+```bash
+# Standard demo
+docker compose -f infra/docker-compose.yml up --build
+
+# Offline-safe demo
+docker compose -f infra/docker-compose.yml -f infra/docker-compose.offline.yml up --build
+```
+
+---
+
+### ✅ **Task 21: Reliability Guardrails for Live Demos** (1 hour)
+
+#### What we're doing:
+Preventing silent failures across Kafka, WebSocket, consumers, and UI panels.
+
+#### Add these reliability checks:
+
+1. Backend startup waits for DB and Kafka before accepting requests.
+2. Kafka consumers retry with exponential backoff.
+3. WebSocket clients auto-reconnect with jittered delay.
+4. Each panel shows explicit state: `LIVE`, `DEGRADED`, `DISCONNECTED`.
+5. Alert pipeline writes status updates for each stage:
+  - `RECEIVED`
+  - `EVALUATED`
+  - `DISPATCHED`
+  - `ACKNOWLEDGED`
+
+#### Suggested retry strategy:
+
+Use backoff delay:
+
+$$
+delay = min(base * 2^attempt + jitter, maxDelay)
+$$
+
+Recommended values:
+- `base = 1s`
+- `maxDelay = 30s`
+- `jitter = 0s-500ms`
+
+---
+
+### ✅ **Task 22: Add a Demo Health Dashboard Endpoint** (45 minutes)
+
+#### What we're doing:
+Creating one endpoint to prove system health instantly during Q&A.
+
+Add backend endpoint:
+`GET /health/overview`
+
+Return payload should include:
+```json
+{
+  "status": "ok",
+  "timestamp": "2026-03-28T12:00:00Z",
+  "services": {
+   "postgres": "ok",
+   "kafka": "ok",
+   "simulator": "ok",
+   "alerts_consumer": "ok",
+   "crowd_consumer": "ok",
+   "trains_consumer": "ok"
+  },
+  "metrics": {
+   "alerts_per_min": 12,
+   "crowd_updates_per_min": 450,
+   "trains_updates_per_min": 14,
+   "avg_ws_broadcast_ms": 75
+  }
+}
+```
+
+#### Judge-friendly usage:
+Open this endpoint live and show:
+- Service health is green
+- Event throughput is active
+- Latency is inside target
+
+---
+
+### ✅ **Task 23: Run a 30-Minute Stress Rehearsal** (45 minutes)
+
+#### What we're doing:
+Testing whether your stack remains stable for the full judging window.
+
+#### Step 23.1: Start full system
+
+```bash
+docker compose -f infra/docker-compose.yml up --build
+```
+
+#### Step 23.2: Observe for 30 minutes
+
+Track these metrics every 5 minutes:
+- Container restarts (`docker ps`)
+- Kafka consumer lag
+- WebSocket reconnect count
+- API latency for `/alerts`, `/crowd/latest`, `/trains/active`, `/zones/risk`
+- Browser memory growth
+
+#### Step 23.3: Pass criteria
+
+Demo is stable if:
+- No crash loops
+- All five panels continue updating
+- API responses remain under 500 ms for typical requests
+- No unrecoverable WebSocket disconnect
+
+---
+
+### ✅ **Task 24: Build a 3-Level Fallback Plan** (30 minutes)
+
+#### What we're doing:
+Preparing for failures without losing flow in presentation.
+
+#### Fallback level 1: Partial live
+- If map tiles fail, continue with alerts + heatmap + trains.
+- Explain map dependency and switch to screenshot backup.
+
+#### Fallback level 2: Offline mode
+- Use `docker-compose.offline.yml`.
+- Camera panel switches to local images only.
+
+#### Fallback level 3: Recorded proof
+- Keep a 2-minute local MP4 demo.
+- Keep 8-10 screenshots arranged by panel and alert lifecycle.
+
+#### Golden rule:
+Never say the system is broken. Say: "Switching to contingency mode to show the same pipeline behavior with local assets."
+
+---
+
+### ✅ **Task 25: Build Submission Artifact Pack** (1 hour)
+
+Create a `submission/` folder:
+
+```text
+submission/
+├── 01-problem-and-solution.md
+├── 02-architecture-overview.md
+├── 03-tech-stack-and-licenses.md
+├── 04-demo-walkthrough.md
+├── 05-innovation-and-impact.md
+├── 06-limitations-and-next-steps.md
+├── screenshots/
+│   ├── alert-queue.png
+│   ├── platform-heatmap.png
+│   ├── network-risk-map.png
+│   ├── train-status.png
+│   ├── camera-feed.png
+│   └── health-overview.png
+└── video/
+   └── railguard-demo-2min.mp4
+```
+
+#### What to include in each doc:
+
+1. `01-problem-and-solution.md`
+  - Railway safety pain points
+  - Why siloed monitoring fails
+  - RailGuard AI value proposition
+
+2. `02-architecture-overview.md`
+  - Source -> Kafka -> FastAPI -> WebSocket -> React flow
+  - How alert routing works
+  - Why this scales
+
+3. `03-tech-stack-and-licenses.md`
+  - Every dependency and license class
+  - Note open-source-first advantage
+
+4. `04-demo-walkthrough.md`
+  - Exactly what to click and say
+  - Time-boxed flow for 2, 5, and 8 minute demos
+
+5. `05-innovation-and-impact.md`
+  - Predictive warning value
+  - Explainable AI rationale
+  - Relevance to Indian Railways ecosystem
+
+6. `06-limitations-and-next-steps.md`
+  - Honest constraints
+  - Safe expansion roadmap
+
+---
+
+### ✅ **Task 26: Prepare a Judge Q&A Cheat Sheet** (30 minutes)
+
+Create `submission/judge-qa-cheatsheet.md` with short answers for:
+
+1. "How is this different from a normal CCTV dashboard?"
+2. "How do you avoid false positives?"
+3. "Can this run on existing railway infra?"
+4. "What happens when Kafka or backend fails?"
+5. "How do you handle data privacy and access control?"
+6. "How expensive is rollout?"
+7. "What is production-readiness gap from this prototype?"
+
+Each answer format:
+- 1 line summary
+- 2 technical bullets
+- 1 impact bullet
+
+---
+
+### ✅ **Task 27: Final 20-Minute Rehearsal Script** (20 minutes)
+
+#### Rehearsal timeline:
+
+1. Minute 0-2:
+  - Problem framing
+  - Why unified SOC is needed
+
+2. Minute 2-8:
+  - Walk through all five panels
+  - Show one full alert lifecycle
+
+3. Minute 8-12:
+  - Show architecture and event flow
+  - Open health endpoint
+
+4. Minute 12-16:
+  - Show resilience (disconnect/reconnect behavior)
+
+5. Minute 16-20:
+  - Impact, roadmap, close
+  - Q&A transition
+
+#### Presenter checklist before entering room:
+- Laptop charging + charger plugged
+- Docker already warmed up
+- Browser tabs pre-opened
+- Local backup video ready
+- Screenshots folder accessible
+- Hotspot ready in case venue Wi-Fi fails
+
+---
+
+## 🧪 **Day 3 Final Validation Checklist**
+
+Run this checklist once, end to end:
+
+1. `docker compose up --build` works in one shot
+2. All five panels render within 30 seconds
+3. New data appears without manual refresh
+4. Restart backend container; UI recovers automatically
+5. Restart simulator container; pipeline resumes automatically
+6. Health endpoint shows all critical services as `ok`
+7. Offline mode launch command works
+8. Submission folder contains docs + screenshots + video
+
+If all 8 are true, your project is final-evaluation ready.
+
+---
+
+## 🏁 **What You Have After Day 3**
+
+- A polished multi-panel live SOC demo
+- A robust fallback strategy for live judging
+- Evidence artifacts for technical credibility
+- A repeatable startup and validation process
+- A confident narrative from problem to impact
+
+You are no longer just "demo-ready"; you are review-proof and submission-ready.
+
+---
+
+# PHASE 2 IMPLEMENTATION GUIDE (Weeks 3-4)
+## AI/ML Core for Complete Beginners
+
+You now have a working demo dashboard. In this section, we will add the AI and ML core from the project plan in a way that is simple, modular, and testable.
+
+If Day 1 and Day 2 proved your pipeline works, this phase proves your intelligence layer works.
+
+---
+
+## What We Will Build in Phase 2
+
+By the end of this section, your system will include:
+- YOLOv8 detection service for camera events
+- Crowd intelligence service (CSRNet-ready adapter)
+- Risk scoring service using XGBoost
+- SHAP explanations attached to every risk result
+- MLflow tracking for experiments and model versions
+- Backend integration so model output appears in alerts and UI
+
+---
+
+## Beginner Mental Model (Very Important)
+
+Think of AI/ML in RailGuard as 3 workers:
+
+1. Vision worker:
+  - Looks at camera input
+  - Says what is detected (person, baggage, suspicious density)
+
+2. Crowd worker:
+  - Estimates how dense each zone is
+  - Sends normalized crowd signal to backend
+
+3. Risk worker:
+  - Combines alerts, crowd, train, and environment signals
+  - Produces risk score + explanation
+
+Then MLflow is the logbook that remembers:
+- which model version you trained
+- what data and params were used
+- which version is currently deployed
+
+---
+
+## Prerequisites Before You Start
+
+Make sure your Day 2 stack is stable first:
+
+1. Dashboard loads and all panels update.
+2. Kafka topics are active.
+3. Backend APIs are reachable.
+4. Simulator streams are live.
+
+If any of these fail, fix them before Phase 2.
+
+---
+
+## Folder Structure for Phase 2
+
+Create this structure first so code stays clean:
+
+```text
+services/
+  ml/
+    common/
+      schemas.py
+      kafka_io.py
+      utils.py
+    yolo_service/
+      app.py
+      requirements.txt
+      Dockerfile
+    crowd_service/
+      app.py
+      requirements.txt
+      Dockerfile
+    risk_service/
+      train.py
+      infer.py
+      shap_explain.py
+      model_registry.py
+      requirements.txt
+      Dockerfile
+models/
+  risk/
+    xgboost_model.pkl
+    feature_columns.json
+data/
+  synthetic/
+    risk_training.csv
+```
+
+Why this helps:
+- Every model service is independent.
+- Easy to debug one worker without breaking others.
+- Easy to containerize and scale later.
+
+---
+
+## Task P2-1: Set Up ML Dependencies
+
+### What we are doing
+Installing only what each service needs (small, reliable containers).
+
+### Base packages
+
+For risk service:
+- xgboost
+- shap
+- pandas
+- scikit-learn
+- mlflow
+- joblib
+
+For YOLO service:
+- ultralytics
+- opencv-python-headless
+- numpy
+
+For crowd service:
+- torch
+- torchvision
+- pillow
+- numpy
+
+For all services:
+- fastapi
+- uvicorn
+- aiokafka
+- pydantic
+
+### Verification
+Run one import test per service before writing logic.
+
+---
+
+## Task P2-2: Define Shared Event Contracts
+
+### Why this matters
+Without strict payload contracts, one service sends field names that another service does not understand.
+
+Create shared schema definitions in `services/ml/common/schemas.py`.
+
+Minimum contracts:
+
+1. CameraDetectionEvent
+- eventId
+- cameraId
+- zoneId
+- timestamp
+- detections: list of label/confidence/bbox
+
+2. CrowdEstimateEvent
+- zoneId
+- densityPercent
+- crowdClass (NORMAL/CROWDED/CRITICAL)
+- timestamp
+
+3. RiskScoreEvent
+- entityId (zone or station)
+- riskScore (0.0 to 1.0)
+- severity
+- topFactors (SHAP summary)
+- timestamp
+
+### Beginner tip
+Keep field names exactly consistent across simulator, model workers, backend, and frontend.
+
+---
+
+## Task P2-3: YOLOv8 Detection Service (First AI Model)
+
+### Goal
+Read camera events from Kafka, run YOLOv8, publish detections.
+
+### Step-by-step
+
+1. Input topic:
+  - `railguard.cameras`
+
+2. Output topic:
+  - `railguard.cameras.detections`
+
+3. Service loop:
+  - consume camera frame metadata
+  - run YOLO prediction
+  - filter low-confidence detections (for example < 0.45)
+  - publish compact detection event
+
+### Keep it beginner-safe
+At first, do not process real RTSP. Use image URLs or static frames from simulator.
+
+### Output example
+
+```json
+{
+  "eventId": "cam-evt-101",
+  "cameraId": "CAM-PF2-01",
+  "zoneId": "PF-2B",
+  "timestamp": "2026-03-28T10:25:00Z",
+  "detections": [
+    {"label": "person", "confidence": 0.88, "bbox": [120, 75, 210, 300]},
+    {"label": "backpack", "confidence": 0.72, "bbox": [260, 140, 320, 250]}
+  ]
+}
+```
+
+### Done criteria
+- You can see detection messages arriving in Kafka output topic.
+- Backend can consume and log them without crash.
+
+---
+
+## Task P2-4: Crowd Intelligence Service (CSRNet-Ready)
+
+### Goal
+Estimate crowd level per zone from camera context.
+
+### Important beginner shortcut
+You can start with a fallback estimator (count of persons from YOLO detections) before plugging full CSRNet. This still gives realistic flow and lets you test pipeline early.
+
+### Strategy
+
+Phase A (quick):
+- crowd density from person count + zone capacity mapping
+
+Formula:
+
+$$
+densityPercent = min\left(100, \frac{personCount}{zoneCapacity} \times 100\right)
+$$
+
+Phase B (upgrade):
+- replace fallback logic with CSRNet inference
+- keep same output schema so backend does not change
+
+### Output topic
+- `railguard.crowd.enriched`
+
+### Done criteria
+- Every zone receives periodic density updates.
+- Status label maps correctly:
+  - 0-49 NORMAL
+  - 50-74 CROWDED
+  - 75-100 CRITICAL
+
+---
+
+## Task P2-5: Build Synthetic Risk Training Dataset
+
+### Goal
+Create training data for XGBoost risk model.
+
+### Features to include
+- recent_alert_count
+- high_alert_ratio
+- avg_crowd_density
+- max_crowd_density
+- avg_train_delay_minutes
+- kavach_degraded_flag
+- weather_rain_flag
+- event_hour
+- day_of_week
+
+### Label
+- risk_label (0 or 1) or continuous risk target
+
+### Beginner guidance
+For hackathon, synthetic data is acceptable if relationships are logical.
+
+Example relationship rules:
+- more high alerts + high crowd + delay -> higher risk
+- off-peak + low crowd + no delay -> lower risk
+
+---
+
+## Task P2-6: Train XGBoost Risk Model
+
+### Goal
+Train model and save artifacts.
+
+### Training flow
+
+1. Read dataset.
+2. Split train/validation.
+3. Train XGBoost classifier/regressor.
+4. Evaluate metrics.
+5. Save:
+  - model file
+  - feature column order
+  - training metrics JSON
+
+### Minimum metrics to print
+- Accuracy or ROC-AUC (classification)
+- MAE or RMSE (regression)
+
+### Save artifacts
+- `models/risk/xgboost_model.pkl`
+- `models/risk/feature_columns.json`
+
+### Done criteria
+- Model file loads successfully in inference script.
+- Inference on one sample row returns valid risk score.
+
+---
+
+## Task P2-7: SHAP Explainability Integration
+
+### Goal
+Attach model reasoning to each risk prediction.
+
+### What SHAP gives you
+For every prediction, SHAP says which features pushed risk up or down and by how much.
+
+### Basic workflow
+
+1. Load trained model.
+2. Create SHAP explainer.
+3. For each prediction, compute SHAP values.
+4. Pick top 3 absolute contributors.
+5. Add to `topFactors` field in event payload.
+
+### Payload example
+
+```json
+{
+  "entityId": "PF-2",
+  "riskScore": 0.84,
+  "severity": "HIGH",
+  "topFactors": [
+    {"feature": "avg_crowd_density", "impact": 0.31},
+    {"feature": "high_alert_ratio", "impact": 0.26},
+    {"feature": "avg_train_delay_minutes", "impact": 0.14}
+  ],
+  "timestamp": "2026-03-28T11:10:00Z"
+}
+```
+
+### Done criteria
+- Every risk event includes explanation factors.
+- Frontend can display factors in alert details.
+
+---
+
+## Task P2-8: Add MLflow Tracking and Model Registry
+
+### Goal
+Track experiments and version models properly.
+
+### What to log in MLflow
+- parameters (max_depth, learning_rate, n_estimators)
+- metrics (AUC, precision, recall, etc.)
+- artifact files (model, feature columns)
+- model signature
+
+### Register model
+Register best run as:
+- name: `railguard-risk-xgb`
+- version: auto from MLflow
+- stage: `Staging` then `Production`
+
+### Why beginners should do this
+Without registry, you will forget which model was in the demo and which one produced the screenshots.
+
+---
+
+## Task P2-9: Build Real-Time Risk Inference Service
+
+### Goal
+Consume live features and produce risk events continuously.
+
+### Input topics
+- `railguard.alerts`
+- `railguard.crowd.enriched`
+- `railguard.trains`
+
+### Output topic
+- `railguard.risk.scores`
+
+### Service logic
+
+1. Keep a short in-memory feature window per zone.
+2. Every N seconds (for example 5s), assemble feature vector.
+3. Run model prediction.
+4. Compute SHAP factors.
+5. Publish risk score event.
+
+### Beginner tip
+Start with one zone pipeline first (`PF-1` only). Once stable, enable all zones.
+
+---
+
+## Task P2-10: Backend Integration for AI/ML Outputs
+
+### Goal
+Make model results visible in your existing app.
+
+Backend additions:
+
+1. New consumer for `railguard.risk.scores`
+2. New table (or extend alerts table) to store risk events
+3. Broadcast risk updates to frontend WebSocket
+4. Add endpoint like `/risk/latest`
+
+Store these fields at minimum:
+- zone_id
+- risk_score
+- severity
+- top_factors (JSON)
+- event_ts
+
+### Done criteria
+- You can call API and see latest risk + factors.
+- Dashboard can render explanation data.
+
+---
+
+## Task P2-11: Frontend Explainability UI
+
+### Goal
+Show why an alert fired, not just that it fired.
+
+Simple beginner UI enhancement:
+
+In alert card, add an expandable section:
+- "Why this alert?"
+- show top 3 factors from SHAP
+
+Example display:
+- Crowd density +0.31
+- High alert ratio +0.26
+- Train delays +0.14
+
+If no explanation exists, show:
+- "Explanation pending"
+
+---
+
+## Task P2-12: Update Docker Compose for ML Services
+
+Add new services:
+- `mlflow`
+- `yolo-service`
+- `crowd-service`
+- `risk-service`
+
+Also add volumes:
+- model artifacts
+- mlruns
+
+Expected local URLs:
+- MLflow UI: `http://localhost:5000`
+- Backend API: `http://localhost:8000`
+- Frontend: `http://localhost:5173`
+
+---
+
+## Testing Checklist for Phase 2
+
+Run this end-to-end after integration:
+
+1. Start stack with Docker Compose.
+2. Verify model workers are healthy.
+3. Publish one sample camera event.
+4. Confirm YOLO output topic receives detection.
+5. Confirm crowd enriched topic receives density.
+6. Confirm risk score topic receives score + SHAP factors.
+7. Confirm backend stores and serves risk payload.
+8. Confirm frontend shows risk and explanations.
+
+If all 8 pass, Phase 2 core is functionally complete.
+
+---
+
+## Common Beginner Mistakes (and Fixes)
+
+1. Mistake:
+Model expects columns in one order, inference sends another.
+Fix:
+Always load and enforce `feature_columns.json` order before predicting.
+
+2. Mistake:
+Using different zone IDs across services (`PF2` vs `PF-2`).
+Fix:
+Centralize zone IDs in shared constants.
+
+3. Mistake:
+SHAP too slow for every event.
+Fix:
+Compute SHAP only for high/medium risk or batch every few seconds.
+
+4. Mistake:
+No retry logic in model workers.
+Fix:
+Add backoff retry when Kafka/model loading fails.
+
+5. Mistake:
+Frontend breaks when explanation missing.
+Fix:
+Treat explanation as optional field with safe defaults.
+
+---
+
+## Suggested 2-Week Plan for This Phase
+
+Week 3:
+1. Shared schemas + Kafka contracts
+2. YOLO service baseline
+3. Crowd service fallback estimator
+4. Synthetic dataset generation
+
+Week 4:
+1. Train XGBoost + save artifacts
+2. SHAP explanation integration
+3. MLflow tracking + registry
+4. Backend + frontend integration and testing
+
+---
+
+## Definition of Done for Phase 2
+
+Phase 2 is complete when all are true:
+
+1. YOLO and crowd workers publish valid events continuously.
+2. Risk model runs on live features and outputs score every cycle.
+3. SHAP top factors are included in risk events.
+4. MLflow contains at least one registered model version.
+5. Backend persists and serves AI outputs.
+6. Frontend displays explainable risk information.
+7. End-to-end system runs for 30 minutes without manual restart.
+
+---
+
+## What Comes After Phase 2
+
+After this, move to your plan's response and integration phase:
+- alert orchestration with retries
+- multi-channel notification dispatch
+- RBAC and zone-level access enforcement
+- observability and SLA dashboards
+
+That phase is where your AI outputs become operational decisions.
+
+---
+
+## 🧩 Phase 2 Starter Code Templates (Copy-Paste Ready)
+
+This section gives you starter code for the major Phase 2 operations.
+
+Important beginner note:
+- These templates are intentionally simple and readable.
+- They are good for hackathon implementation and live demo.
+- You can optimize performance later.
+
+---
+
+### Template 1: Shared Schemas
+
+Create: `services/ml/common/schemas.py`
+
+```python
+from __future__ import annotations
+
+from datetime import datetime
+from typing import Any, List
+
+from pydantic import BaseModel, Field
+
+
+class DetectionItem(BaseModel):
+  label: str
+  confidence: float = Field(ge=0.0, le=1.0)
+  bbox: List[int] = Field(default_factory=list)
+
+
+class CameraEvent(BaseModel):
+  eventId: str
+  cameraId: str
+  zoneId: str
+  imageUrl: str | None = None
+  timestamp: datetime
+
+
+class CameraDetectionEvent(BaseModel):
+  eventId: str
+  cameraId: str
+  zoneId: str
+  timestamp: datetime
+  detections: List[DetectionItem] = Field(default_factory=list)
+
+
+class CrowdEstimateEvent(BaseModel):
+  zoneId: str
+  densityPercent: int = Field(ge=0, le=100)
+  crowdClass: str
+  timestamp: datetime
+  meta: dict[str, Any] = Field(default_factory=dict)
+
+
+class RiskFactor(BaseModel):
+  feature: str
+  impact: float
+
+
+class RiskScoreEvent(BaseModel):
+  entityId: str
+  riskScore: float = Field(ge=0.0, le=1.0)
+  severity: str
+  topFactors: List[RiskFactor] = Field(default_factory=list)
+  timestamp: datetime
+  modelVersion: str = "unknown"
+```
+
+---
+
+### Template 2: Kafka Utility Helpers
+
+Create: `services/ml/common/kafka_io.py`
+
+```python
+from __future__ import annotations
+
+import json
+import os
+from typing import Any
+
+from aiokafka import AIOKafkaConsumer, AIOKafkaProducer
+
+
+def bootstrap_servers() -> str:
+  return os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")
+
+
+def build_consumer(topic: str, group_id: str) -> AIOKafkaConsumer:
+  return AIOKafkaConsumer(
+    topic,
+    bootstrap_servers=bootstrap_servers(),
+    value_deserializer=lambda v: json.loads(v.decode("utf-8")),
+    enable_auto_commit=True,
+    auto_offset_reset="latest",
+    group_id=group_id,
+  )
+
+
+def build_producer() -> AIOKafkaProducer:
+  return AIOKafkaProducer(
+    bootstrap_servers=bootstrap_servers(),
+    value_serializer=lambda v: json.dumps(v).encode("utf-8"),
+  )
+
+
+async def publish_json(producer: AIOKafkaProducer, topic: str, payload: dict[str, Any]) -> None:
+  await producer.send_and_wait(topic, payload)
+```
+
+---
+
+### Template 3: YOLO Worker (Camera -> Detections)
+
+Create: `services/ml/yolo_service/app.py`
+
+```python
+from __future__ import annotations
+
+import asyncio
+import logging
+import os
+from datetime import datetime, timezone
+from typing import Any
+
+import requests
+from PIL import Image
+from ultralytics import YOLO
+
+from services.ml.common.kafka_io import build_consumer, build_producer, publish_json
+
+logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"))
+logger = logging.getLogger("railguard-yolo-service")
+
+INPUT_TOPIC = os.getenv("CAMERA_INPUT_TOPIC", "railguard.cameras")
+OUTPUT_TOPIC = os.getenv("CAMERA_OUTPUT_TOPIC", "railguard.cameras.detections")
+CONF_THRESHOLD = float(os.getenv("YOLO_CONF_THRESHOLD", "0.45"))
+MODEL_NAME = os.getenv("YOLO_MODEL", "yolov8n.pt")
+
+
+def load_image(image_url: str) -> Image.Image:
+  response = requests.get(image_url, timeout=15)
+  response.raise_for_status()
+  return Image.open(response.raw)
+
+
+def parse_detections(raw_result: Any) -> list[dict[str, Any]]:
+  detections: list[dict[str, Any]] = []
+  if raw_result.boxes is None:
+    return detections
+
+  boxes = raw_result.boxes
+  for i in range(len(boxes)):
+    conf = float(boxes.conf[i].item())
+    if conf < CONF_THRESHOLD:
+      continue
+    cls_id = int(boxes.cls[i].item())
+    xyxy = boxes.xyxy[i].tolist()
+    detections.append(
+      {
+        "label": raw_result.names.get(cls_id, str(cls_id)),
+        "confidence": round(conf, 4),
+        "bbox": [int(v) for v in xyxy],
+      }
+    )
+  return detections
+
+
+async def run() -> None:
+  model = YOLO(MODEL_NAME)
+  consumer = build_consumer(INPUT_TOPIC, group_id="railguard-yolo-consumer")
+  producer = build_producer()
+
+  await consumer.start()
+  await producer.start()
+  logger.info("YOLO service started: %s -> %s", INPUT_TOPIC, OUTPUT_TOPIC)
+
+  try:
+    async for msg in consumer:
+      event = msg.value
+      image_url = event.get("imageUrl")
+      if not image_url:
+        continue
+
+      try:
+        image = load_image(image_url)
+        result = model.predict(image, verbose=False)[0]
+        detections = parse_detections(result)
+        out_event = {
+          "eventId": event.get("eventId", "unknown"),
+          "cameraId": event.get("cameraId", "unknown"),
+          "zoneId": event.get("zoneId", "UNKNOWN"),
+          "timestamp": datetime.now(timezone.utc).isoformat(),
+          "detections": detections,
+        }
+        await publish_json(producer, OUTPUT_TOPIC, out_event)
+      except Exception as exc:
+        logger.warning("Failed YOLO inference for event %s: %s", event.get("eventId"), exc)
+  finally:
+    await consumer.stop()
+    await producer.stop()
+
+
+if __name__ == "__main__":
+  asyncio.run(run())
+```
+
+Create: `services/ml/yolo_service/requirements.txt`
+
+```text
+aiokafka==0.12.0
+ultralytics==8.3.0
+requests==2.32.3
+Pillow==10.4.0
+```
+
+Create: `services/ml/yolo_service/Dockerfile`
+
+```dockerfile
+FROM python:3.11-slim
+
+WORKDIR /app
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY . .
+
+CMD ["python", "app.py"]
+```
+
+---
+
+### Template 4: Crowd Service (YOLO detections -> crowd density)
+
+Create: `services/ml/crowd_service/app.py`
+
+```python
+from __future__ import annotations
+
+import asyncio
+import logging
+import os
+from datetime import datetime, timezone
+
+from services.ml.common.kafka_io import build_consumer, build_producer, publish_json
+
+logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"))
+logger = logging.getLogger("railguard-crowd-service")
+
+INPUT_TOPIC = os.getenv("CROWD_INPUT_TOPIC", "railguard.cameras.detections")
+OUTPUT_TOPIC = os.getenv("CROWD_OUTPUT_TOPIC", "railguard.crowd.enriched")
+
+# Adjust these capacities based on your station design.
+ZONE_CAPACITY = {
+  "PF-1A": 45,
+  "PF-1B": 40,
+  "PF-1C": 55,
+  "PF-2A": 60,
+  "PF-2B": 60,
+  "PF-3A": 40,
+  "PF-3B": 40,
+}
+
+
+def crowd_class(density_percent: int) -> str:
+  if density_percent < 50:
+    return "NORMAL"
+  if density_percent < 75:
+    return "CROWDED"
+  return "CRITICAL"
+
+
+def estimate_density(zone_id: str, detections: list[dict]) -> int:
+  person_count = sum(1 for d in detections if d.get("label") == "person")
+  capacity = ZONE_CAPACITY.get(zone_id, 50)
+  density = int(min(100, (person_count / capacity) * 100))
+  return density
+
+
+async def run() -> None:
+  consumer = build_consumer(INPUT_TOPIC, group_id="railguard-crowd-consumer")
+  producer = build_producer()
+
+  await consumer.start()
+  await producer.start()
+  logger.info("Crowd service started: %s -> %s", INPUT_TOPIC, OUTPUT_TOPIC)
+
+  try:
+    async for msg in consumer:
+      detection_event = msg.value
+      zone_id = detection_event.get("zoneId", "UNKNOWN")
+      detections = detection_event.get("detections", [])
+      density = estimate_density(zone_id, detections)
+
+      out_event = {
+        "zoneId": zone_id,
+        "densityPercent": density,
+        "crowdClass": crowd_class(density),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "meta": {
+          "source": "yolo_person_count",
+          "personCount": sum(1 for d in detections if d.get("label") == "person"),
+        },
+      }
+      await publish_json(producer, OUTPUT_TOPIC, out_event)
+  finally:
+    await consumer.stop()
+    await producer.stop()
+
+
+if __name__ == "__main__":
+  asyncio.run(run())
+```
+
+Create: `services/ml/crowd_service/requirements.txt`
+
+```text
+aiokafka==0.12.0
+```
+
+Create: `services/ml/crowd_service/Dockerfile`
+
+```dockerfile
+FROM python:3.11-slim
+
+WORKDIR /app
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY . .
+
+CMD ["python", "app.py"]
+```
+
+---
+
+### Template 5: Synthetic Risk Dataset Generator
+
+Create: `services/ml/risk_service/generate_dataset.py`
+
+```python
+from __future__ import annotations
+
+import random
+from pathlib import Path
+
+import pandas as pd
+
+
+def row() -> dict:
+  recent_alert_count = random.randint(0, 12)
+  high_alert_ratio = round(random.uniform(0, 1), 3)
+  avg_crowd_density = random.randint(5, 100)
+  max_crowd_density = min(100, avg_crowd_density + random.randint(0, 20))
+  avg_train_delay_minutes = random.randint(0, 55)
+  kavach_degraded_flag = random.choice([0, 1])
+  weather_rain_flag = random.choice([0, 1])
+  event_hour = random.randint(0, 23)
+  day_of_week = random.randint(0, 6)
+
+  score = (
+    0.10 * recent_alert_count
+    + 1.8 * high_alert_ratio
+    + 0.02 * avg_crowd_density
+    + 0.01 * max_crowd_density
+    + 0.015 * avg_train_delay_minutes
+    + 0.4 * kavach_degraded_flag
+    + 0.2 * weather_rain_flag
+  )
+  risk_label = 1 if score >= 2.5 else 0
+
+  return {
+    "recent_alert_count": recent_alert_count,
+    "high_alert_ratio": high_alert_ratio,
+    "avg_crowd_density": avg_crowd_density,
+    "max_crowd_density": max_crowd_density,
+    "avg_train_delay_minutes": avg_train_delay_minutes,
+    "kavach_degraded_flag": kavach_degraded_flag,
+    "weather_rain_flag": weather_rain_flag,
+    "event_hour": event_hour,
+    "day_of_week": day_of_week,
+    "risk_label": risk_label,
+  }
+
+
+def main() -> None:
+  records = [row() for _ in range(2500)]
+  df = pd.DataFrame(records)
+
+  out_path = Path("data/synthetic/risk_training.csv")
+  out_path.parent.mkdir(parents=True, exist_ok=True)
+  df.to_csv(out_path, index=False)
+
+  print(f"Generated {len(df)} rows at {out_path}")
+
+
+if __name__ == "__main__":
+  main()
+```
+
+---
+
+### Template 6: XGBoost Training + MLflow Logging
+
+Create: `services/ml/risk_service/train.py`
+
+```python
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+import joblib
+import mlflow
+import mlflow.sklearn
+import pandas as pd
+from sklearn.metrics import accuracy_score, f1_score, roc_auc_score
+from sklearn.model_selection import train_test_split
+from xgboost import XGBClassifier
+
+
+DATA_PATH = Path("data/synthetic/risk_training.csv")
+MODEL_DIR = Path("models/risk")
+MODEL_PATH = MODEL_DIR / "xgboost_model.pkl"
+FEATURES_PATH = MODEL_DIR / "feature_columns.json"
+METRICS_PATH = MODEL_DIR / "metrics.json"
+
+
+def main() -> None:
+  df = pd.read_csv(DATA_PATH)
+
+  target_col = "risk_label"
+  feature_cols = [c for c in df.columns if c != target_col]
+
+  X = df[feature_cols]
+  y = df[target_col]
+
+  X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, random_state=42, stratify=y
+  )
+
+  params = {
+    "n_estimators": 200,
+    "max_depth": 5,
+    "learning_rate": 0.08,
+    "subsample": 0.9,
+    "colsample_bytree": 0.9,
+    "eval_metric": "logloss",
+    "random_state": 42,
+  }
+
+  mlflow.set_tracking_uri("http://localhost:5000")
+  mlflow.set_experiment("railguard-risk")
+
+  with mlflow.start_run(run_name="xgb-baseline"):
+    model = XGBClassifier(**params)
+    model.fit(X_train, y_train)
+
+    preds = model.predict(X_test)
+    probs = model.predict_proba(X_test)[:, 1]
+
+    metrics = {
+      "accuracy": float(accuracy_score(y_test, preds)),
+      "f1": float(f1_score(y_test, preds)),
+      "roc_auc": float(roc_auc_score(y_test, probs)),
+    }
+
+    mlflow.log_params(params)
+    mlflow.log_metrics(metrics)
+    mlflow.sklearn.log_model(model, artifact_path="model")
+
+    MODEL_DIR.mkdir(parents=True, exist_ok=True)
+    joblib.dump(model, MODEL_PATH)
+    FEATURES_PATH.write_text(json.dumps(feature_cols, indent=2), encoding="utf-8")
+    METRICS_PATH.write_text(json.dumps(metrics, indent=2), encoding="utf-8")
+
+    mlflow.log_artifact(str(FEATURES_PATH))
+    mlflow.log_artifact(str(METRICS_PATH))
+
+    print("Training complete")
+    print(json.dumps(metrics, indent=2))
+
+
+if __name__ == "__main__":
+  main()
+```
+
+---
+
+### Template 7: SHAP Explainability Helper
+
+Create: `services/ml/risk_service/shap_explain.py`
+
+```python
+from __future__ import annotations
+
+from typing import Any
+
+import numpy as np
+import shap
+
+
+class ShapHelper:
+  def __init__(self, model: Any, feature_names: list[str]) -> None:
+    self.feature_names = feature_names
+    self.explainer = shap.TreeExplainer(model)
+
+  def top_factors(self, feature_vector: list[float], top_k: int = 3) -> list[dict]:
+    arr = np.array(feature_vector).reshape(1, -1)
+    vals = self.explainer.shap_values(arr)
+
+    # Binary classifier can return list of arrays; use positive class if so.
+    if isinstance(vals, list):
+      vals = vals[1]
+
+    flat = vals[0]
+    pairs = list(zip(self.feature_names, flat))
+    pairs.sort(key=lambda x: abs(float(x[1])), reverse=True)
+
+    return [
+      {"feature": f, "impact": round(float(v), 4)}
+      for f, v in pairs[:top_k]
+    ]
+```
+
+---
+
+### Template 8: Real-Time Risk Inference Worker
+
+Create: `services/ml/risk_service/infer.py`
+
+```python
+from __future__ import annotations
+
+import asyncio
+import json
+import logging
+import os
+from collections import defaultdict
+from datetime import datetime, timezone
+from pathlib import Path
+
+import joblib
+
+from services.ml.common.kafka_io import build_consumer, build_producer, publish_json
+from services.ml.risk_service.shap_explain import ShapHelper
+
+logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"))
+logger = logging.getLogger("railguard-risk-service")
+
+TOPIC_ALERTS = os.getenv("TOPIC_ALERTS", "railguard.alerts")
+TOPIC_CROWD = os.getenv("TOPIC_CROWD", "railguard.crowd.enriched")
+TOPIC_TRAINS = os.getenv("TOPIC_TRAINS", "railguard.trains")
+TOPIC_OUTPUT = os.getenv("TOPIC_RISK_OUTPUT", "railguard.risk.scores")
+
+MODEL_PATH = Path("models/risk/xgboost_model.pkl")
+FEATURES_PATH = Path("models/risk/feature_columns.json")
+
+
+def severity_from_score(score: float) -> str:
+  if score >= 0.75:
+    return "HIGH"
+  if score >= 0.45:
+    return "MEDIUM"
+  return "LOW"
+
+
+class ZoneState:
+  def __init__(self) -> None:
+    self.recent_alert_count = 0
+    self.high_alert_count = 0
+    self.avg_crowd_density = 20
+    self.max_crowd_density = 20
+    self.avg_train_delay_minutes = 0
+    self.kavach_degraded_flag = 0
+    self.weather_rain_flag = 0
+
+
+async def consume_alerts(state: dict[str, ZoneState]) -> None:
+  consumer = build_consumer(TOPIC_ALERTS, group_id="risk-alerts-consumer")
+  await consumer.start()
+  try:
+    async for msg in consumer:
+      e = msg.value
+      zone = e.get("zoneId", "UNKNOWN")
+      s = state[zone]
+      s.recent_alert_count += 1
+      if e.get("severity") == "HIGH":
+        s.high_alert_count += 1
+  finally:
+    await consumer.stop()
+
+
+async def consume_crowd(state: dict[str, ZoneState]) -> None:
+  consumer = build_consumer(TOPIC_CROWD, group_id="risk-crowd-consumer")
+  await consumer.start()
+  try:
+    async for msg in consumer:
+      e = msg.value
+      zone = e.get("zoneId", "UNKNOWN")
+      density = int(e.get("densityPercent", 0))
+      s = state[zone]
+      s.avg_crowd_density = int((s.avg_crowd_density * 0.7) + (density * 0.3))
+      s.max_crowd_density = max(s.max_crowd_density, density)
+  finally:
+    await consumer.stop()
+
+
+async def consume_trains(state: dict[str, ZoneState]) -> None:
+  consumer = build_consumer(TOPIC_TRAINS, group_id="risk-trains-consumer")
+  await consumer.start()
+  try:
+    async for msg in consumer:
+      e = msg.value
+      zone = e.get("zoneId", "PF-1A")  # Map train to zone via your own rule later.
+      delay = int(e.get("delayMinutes", 0))
+      kavach = e.get("kavachStatus", "ACTIVE")
+      s = state[zone]
+      s.avg_train_delay_minutes = int((s.avg_train_delay_minutes * 0.7) + (delay * 0.3))
+      s.kavach_degraded_flag = 1 if kavach in {"DEGRADED", "OFFLINE"} else 0
+  finally:
+    await consumer.stop()
+
+
+async def publish_risk_loop(state: dict[str, ZoneState]) -> None:
+  model = joblib.load(MODEL_PATH)
+  feature_cols = json.loads(FEATURES_PATH.read_text(encoding="utf-8"))
+  shap_helper = ShapHelper(model=model, feature_names=feature_cols)
+
+  producer = build_producer()
+  await producer.start()
+
+  try:
+    while True:
+      now = datetime.now(timezone.utc)
+      hour = now.hour
+      dow = now.weekday()
+
+      for zone, s in state.items():
+        high_ratio = (s.high_alert_count / s.recent_alert_count) if s.recent_alert_count > 0 else 0.0
+
+        vector = {
+          "recent_alert_count": s.recent_alert_count,
+          "high_alert_ratio": high_ratio,
+          "avg_crowd_density": s.avg_crowd_density,
+          "max_crowd_density": s.max_crowd_density,
+          "avg_train_delay_minutes": s.avg_train_delay_minutes,
+          "kavach_degraded_flag": s.kavach_degraded_flag,
+          "weather_rain_flag": s.weather_rain_flag,
+          "event_hour": hour,
+          "day_of_week": dow,
+        }
+
+        ordered = [vector[c] for c in feature_cols]
+        risk_score = float(model.predict_proba([ordered])[0][1])
+        factors = shap_helper.top_factors(ordered, top_k=3)
+
+        out_event = {
+          "entityId": zone,
+          "riskScore": round(risk_score, 4),
+          "severity": severity_from_score(risk_score),
+          "topFactors": factors,
+          "timestamp": now.isoformat(),
+          "modelVersion": "xgb-v1",
+        }
+        await publish_json(producer, TOPIC_OUTPUT, out_event)
+
+        # Soft reset short-window counters.
+        s.recent_alert_count = int(s.recent_alert_count * 0.6)
+        s.high_alert_count = int(s.high_alert_count * 0.6)
+
+      await asyncio.sleep(5)
+  finally:
+    await producer.stop()
+
+
+async def main() -> None:
+  state: dict[str, ZoneState] = defaultdict(ZoneState)
+
+  await asyncio.gather(
+    consume_alerts(state),
+    consume_crowd(state),
+    consume_trains(state),
+    publish_risk_loop(state),
+  )
+
+
+if __name__ == "__main__":
+  asyncio.run(main())
+```
+
+Create: `services/ml/risk_service/requirements.txt`
+
+```text
+aiokafka==0.12.0
+pandas==2.2.2
+numpy==2.0.1
+scikit-learn==1.5.1
+xgboost==2.1.1
+shap==0.46.0
+joblib==1.4.2
+mlflow==2.16.2
+```
+
+Create: `services/ml/risk_service/Dockerfile`
+
+```dockerfile
+FROM python:3.11-slim
+
+WORKDIR /app
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY . .
+
+CMD ["python", "infer.py"]
+```
+
+---
+
+### Template 9: MLflow Model Registration Script
+
+Create: `services/ml/risk_service/model_registry.py`
+
+```python
+from __future__ import annotations
+
+import mlflow
+from mlflow.tracking import MlflowClient
+
+
+def register_latest(model_name: str = "railguard-risk-xgb") -> None:
+  mlflow.set_tracking_uri("http://localhost:5000")
+  client = MlflowClient()
+
+  exp = client.get_experiment_by_name("railguard-risk")
+  if not exp:
+    raise RuntimeError("Experiment 'railguard-risk' not found")
+
+  runs = client.search_runs(
+    experiment_ids=[exp.experiment_id],
+    order_by=["metrics.roc_auc DESC"],
+    max_results=1,
+  )
+  if not runs:
+    raise RuntimeError("No runs found to register")
+
+  best_run = runs[0]
+  model_uri = f"runs:/{best_run.info.run_id}/model"
+  result = mlflow.register_model(model_uri=model_uri, name=model_name)
+
+  # Move the new version to Staging for demo validation.
+  client.transition_model_version_stage(
+    name=model_name,
+    version=result.version,
+    stage="Staging",
+  )
+
+  print(f"Registered {model_name} version {result.version} -> Staging")
+
+
+if __name__ == "__main__":
+  register_latest()
+```
+
+---
+
+### Template 10: Backend Risk Consumer Integration Snippet
+
+Add these patterns in `services/backend/app/main.py`.
+
+1) Extend `init_db` with risk table:
+
+```python
+risk_query = """
+CREATE TABLE IF NOT EXISTS risk_scores (
+  id BIGSERIAL PRIMARY KEY,
+  entity_id TEXT NOT NULL,
+  risk_score DOUBLE PRECISION NOT NULL,
+  severity TEXT NOT NULL,
+  top_factors JSONB NOT NULL,
+  model_version TEXT NOT NULL,
+  event_ts TIMESTAMPTZ NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_risk_entity_time
+ON risk_scores(entity_id, event_ts DESC);
+"""
+await conn.execute(risk_query)
+```
+
+2) Add save helper:
+
+```python
+async def save_risk_score(pool: asyncpg.Pool, event: dict[str, Any]) -> None:
+  query = """
+  INSERT INTO risk_scores (entity_id, risk_score, severity, top_factors, model_version, event_ts)
+  VALUES ($1, $2, $3, $4::jsonb, $5, $6);
+  """
+  async with pool.acquire() as conn:
+    await conn.execute(
+      query,
+      event["entityId"],
+      float(event["riskScore"]),
+      event["severity"],
+      json.dumps(event.get("topFactors", [])),
+      event.get("modelVersion", "unknown"),
+      datetime.fromisoformat(event["timestamp"].replace("Z", "+00:00")),
+    )
+```
+
+3) Add consumer loop for topic `railguard.risk.scores`:
+
+```python
+async def consume_risk_loop() -> None:
+  topic = "railguard.risk.scores"
+  while True:
+    consumer: AIOKafkaConsumer | None = None
+    try:
+      consumer = AIOKafkaConsumer(
+        topic,
+        bootstrap_servers=KAFKA_BOOTSTRAP_SERVERS,
+        value_deserializer=lambda v: json.loads(v.decode("utf-8")),
+        group_id="railguard-risk-consumer",
+        enable_auto_commit=True,
+        auto_offset_reset="latest",
+      )
+      await consumer.start()
+      async for message in consumer:
+        event = message.value
+        if state.db_pool is not None:
+          await save_risk_score(state.db_pool, event)
+    except asyncio.CancelledError:
+      break
+    except Exception as exc:
+      logger.exception("Risk consumer failed: %s", exc)
+      await asyncio.sleep(3)
+    finally:
+      if consumer is not None:
+        await consumer.stop()
+```
+
+4) Add API endpoint:
+
+```python
+@app.get("/risk/latest")
+async def get_latest_risk(limit: int = 50) -> list[dict[str, Any]]:
+  safe_limit = max(1, min(limit, 200))
+  query = """
+  SELECT entity_id, risk_score, severity, top_factors, model_version, event_ts
+  FROM risk_scores
+  ORDER BY event_ts DESC
+  LIMIT $1;
+  """
+  if state.db_pool is None:
+    return []
+  async with state.db_pool.acquire() as conn:
+    rows = await conn.fetch(query, safe_limit)
+  return [
+    {
+      "entityId": r["entity_id"],
+      "riskScore": r["risk_score"],
+      "severity": r["severity"],
+      "topFactors": r["top_factors"],
+      "modelVersion": r["model_version"],
+      "timestamp": r["event_ts"].isoformat(),
+    }
+    for r in rows
+  ]
+```
+
+---
+
+### Template 11: Docker Compose Additions (Phase 2)
+
+Add these services to `infra/docker-compose.yml`.
+
+```yaml
+  mlflow:
+  image: ghcr.io/mlflow/mlflow:v2.16.2
+  command: mlflow server --host 0.0.0.0 --port 5000
+  ports:
+    - "5000:5000"
+
+  yolo-service:
+  build:
+    context: ../services/ml/yolo_service
+    dockerfile: Dockerfile
+  depends_on:
+    - kafka
+  environment:
+    KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+    CAMERA_INPUT_TOPIC: railguard.cameras
+    CAMERA_OUTPUT_TOPIC: railguard.cameras.detections
+
+  crowd-service:
+  build:
+    context: ../services/ml/crowd_service
+    dockerfile: Dockerfile
+  depends_on:
+    - kafka
+  environment:
+    KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+    CROWD_INPUT_TOPIC: railguard.cameras.detections
+    CROWD_OUTPUT_TOPIC: railguard.crowd.enriched
+
+  risk-service:
+  build:
+    context: ../services/ml/risk_service
+    dockerfile: Dockerfile
+  depends_on:
+    - kafka
+    - mlflow
+  environment:
+    KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+    TOPIC_ALERTS: railguard.alerts
+    TOPIC_CROWD: railguard.crowd.enriched
+    TOPIC_TRAINS: railguard.trains
+    TOPIC_RISK_OUTPUT: railguard.risk.scores
+```
+
+---
+
+### Template 12: Quick Run Commands (Beginner Flow)
+
+Use this order:
+
+```bash
+# 1) Generate synthetic dataset
+python services/ml/risk_service/generate_dataset.py
+
+# 2) Start infra and mlflow
+docker compose -f infra/docker-compose.yml up -d kafka postgres redis mlflow
+
+# 3) Train model and log to mlflow
+python services/ml/risk_service/train.py
+
+# 4) (Optional) Register best model in staging
+python services/ml/risk_service/model_registry.py
+
+# 5) Start full stack
+docker compose -f infra/docker-compose.yml up --build
+```
+---
+### Phase 2 Code Validation Checklist
+
+1. `railguard.cameras.detections` gets YOLO outputs.
+2. `railguard.crowd.enriched` gets density outputs.
+3. `railguard.risk.scores` gets risk + SHAP topFactors.
+4. Backend `/risk/latest` returns stored events.
+5. At least one alert card can show topFactors.
+
+If these 5 checks pass, your Phase 2 operation code is wired correctly for a hackathon-grade implementation.
