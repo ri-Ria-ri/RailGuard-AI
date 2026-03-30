@@ -72,7 +72,7 @@ services:
 
   yolo-service:
     build:
-      context: ../services/ml/yolo_service
+      context: ../services/ml/yolo-service
       dockerfile: Dockerfile
     depends_on:
       - kafka
