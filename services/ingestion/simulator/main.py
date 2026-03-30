@@ -9,6 +9,7 @@ from aiokafka import AIOKafkaProducer
 
 KAFKA_BOOTSTRAP_SERVERS = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")
 KAFKA_TOPIC = os.getenv("KAFKA_TOPIC", "railguard.alerts")
+KAFKA_CROWD_TOPIC = os.getenv("KAFKA_CROWD_TOPIC", "railguard.crowd")
 EVENT_INTERVAL_SECONDS = float(os.getenv("EVENT_INTERVAL_SECONDS", "1"))
 
 SEVERITIES = ["LOW", "MEDIUM", "HIGH"]
@@ -37,6 +38,15 @@ def generate_alert() -> dict:
     }
 
 
+def generate_crowd_event() -> dict:
+    density = random.randint(5, 95)
+    return {
+        "zoneId": random.choice(ZONES),
+        "densityPercent": density,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }
+
+
 async def run_producer() -> None:
     producer = AIOKafkaProducer(
         bootstrap_servers=KAFKA_BOOTSTRAP_SERVERS,
@@ -46,9 +56,18 @@ async def run_producer() -> None:
 
     try:
         while True:
-            event = generate_alert()
-            await producer.send_and_wait(KAFKA_TOPIC, event)
-            print(f"Published event {event['id']} ({event['severity']}) for zone {event['zoneId']}")
+            alert_event = generate_alert()
+            crowd_event = generate_crowd_event()
+
+            await producer.send_and_wait(KAFKA_TOPIC, alert_event)
+            await producer.send_and_wait(KAFKA_CROWD_TOPIC, crowd_event)
+
+            print(
+                f"Published alert {alert_event['id']} ({alert_event['severity']}) zone {alert_event['zoneId']}"
+            )
+            print(
+                f"Published crowd density {crowd_event['densityPercent']}% zone {crowd_event['zoneId']}"
+            )
             await asyncio.sleep(EVENT_INTERVAL_SECONDS)
     finally:
         await producer.stop()

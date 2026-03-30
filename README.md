@@ -1,42 +1,86 @@
-# RailGuard AI 
+# RailGuard AI
 
-This scaffold gives you a working first milestone:
+RailGuard AI is a demo project for railway safety monitoring.
 
-Simulator -> Kafka -> FastAPI -> WebSocket -> React Dashboard
+It shows how live events move from a simulator to a dashboard in real time.
 
-## Included Services
+## What This Project Does
 
-- Kafka + Zookeeper
-- Redis
-- PostgreSQL
-- FastAPI backend (`/health`, `/alerts`, `/ws/alerts`)
-- Event simulator (publishes synthetic railway alerts)
-- React dashboard (live alert queue)
+This project currently simulates two kinds of live data:
 
-## Quick Start
+- Safety alerts (low, medium, high)
+- Crowd density by zone
+
+The data flow is:
+
+Simulator -> Kafka -> Backend API -> Database + WebSocket -> Frontend Dashboard
+
+## How The Repo Is Organized
+
+Here is what each main folder is for:
+
+- infra: Docker setup for all services (Kafka, Postgres, backend, frontend, simulator)
+- services/backend: FastAPI server (reads Kafka, saves data, serves APIs and WebSockets)
+- services/frontend: React dashboard (shows live alerts)
+- services/ingestion/simulator: Python event generator (publishes alert and crowd events)
+- schemas: JSON schema files for event formats
+- docs: architecture and planning documents
+
+## What Is Already Working
+
+- Docker-based startup for the full stack
+- Backend health endpoint
+- Alerts API and alerts WebSocket
+- Crowd latest API
+- Simulator publishing alert and crowd events
+- Data persistence in PostgreSQL
+
+## Quick Start (Recommended)
+
+If you are new to coding, use Docker. It is the easiest path.
 
 1. Install Docker Desktop.
-2. From the repository root, run:
+2. Open a terminal in the project root.
+3. Run:
 
 ```bash
 docker compose -f infra/docker-compose.yml up --build
 ```
 
-3. Open:
+4. Open these in your browser:
+
 - Dashboard: http://localhost:5173
-- API health: http://localhost:8000/health
+- Backend health: http://localhost:8000/health
 - Alerts API: http://localhost:8000/alerts
+- Crowd API: http://localhost:8000/crowd/latest
 
-## First Milestone Checklist
+## Important Setup Note (Simple Version)
 
-- Synthetic alerts stream every second.
-- Dashboard receives live alerts over WebSocket.
-- Alerts persist in PostgreSQL and are available after refresh.
-- End-to-end latency should be near real-time in local setup.
+Use Docker unless you specifically need local Python setup.
 
-## Next Steps
+Reason: local Python 3.14 can fail to install some packages used by this project.
 
-- Replace simulator with real camera/GPS/sensor producers.
-- Add model inference workers (YOLOv8/CSRNet/XGBoost).
-- Add authentication and RBAC (Keycloak).
-- Add alert routing (Celery + Redis) and notifications.
+If you run backend locally, use Python 3.11.
+
+## What Still Needs To Be Built
+
+This repo is a strong base, but it is not the final product yet.
+
+Main things still to build:
+
+- Full UI panels (map, train status board, camera feed panel)
+- Train status event pipeline (producer + backend endpoint + UI panel)
+- Better crowd visualization in frontend
+- Real model inference workers (replace random simulator values)
+- Authentication and user roles
+- Notifications and alert routing
+- Tests (unit and integration)
+- Production hardening (monitoring, retries, security)
+
+## Simple Development Goal
+
+Think of this repository as a working foundation.
+
+You can already run and demo live data flow.
+
+Next, build feature panels one by one on top of this base.
