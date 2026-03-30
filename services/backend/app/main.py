@@ -33,12 +33,16 @@ app.add_middleware(
 class AppState:
     db_pool: asyncpg.Pool | None = None
     websocket_clients: set[WebSocket]
+     crowd_clients: set[WebSocket] 
     consumer_task: asyncio.Task | None
+     crowd_consumer_task: asyncio.Task | None
 
     def __init__(self) -> None:
         self.db_pool = None
-        self.websocket_clients = set()
-        self.consumer_task = None
+        self.websocket_clients = set() 
+        self.crowd_clients = set()
+        self.consumer_task = None 
+        self.crowd_consumer_task = None
 
 
 state = AppState()
@@ -247,8 +251,7 @@ async def get_alerts(limit: int = 50) -> list[dict[str, Any]]:
     return alerts
 
 
-@app.websocket("/ws/alerts")
-async def websocket_alerts(websocket: WebSocket) -> None:
+@app.websocket("/ws/alerts")async def websocket_alerts(websocket: WebSocket) -> None:
     await websocket.accept()
     state.websocket_clients.add(websocket)
 
@@ -259,3 +262,143 @@ async def websocket_alerts(websocket: WebSocket) -> None:
         state.websocket_clients.discard(websocket)
     except Exception:
         state.websocket_clients.discard(websocket)
+
+# After the existing /ws/alerts endpoint, add this new endpoint:
+
+@app.websocket("/ws/crowd")
+async def websocket_crowd(websocket: WebSocket) -> None:
+    """
+    WebSocket endpoint for real-time crowd density updates
+    Clients connect here to receive live crowd data
+    """
+    await websocket.accept()
+    state.crowd_clients.add(websocket)  # We'll add this to AppState
+    
+    try:
+        while True:
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        state.crowd_clients.discard(websocket)
+    except Exception:
+        state.crowd_clients.discard(websocket)
+
+        async def broadcast_crowd(event: dict[str, Any]) -> None:
+    """Broadcast crowd density update to all connected WebSocket clients"""
+    disconnected: list[WebSocket] = []
+    for client in state.crowd_clients:
+        try:
+            await client.send_json(event)
+        except Exception:
+            disconnected.append(client)
+
+    for client in disconnected:
+        state.crowd_clients.discard(client)v
+
+        async def save_crowd_density(pool: asyncpg.Pool, event: dict[str, Any]) -> None:
+    """Save crowd density reading to database"""
+    query = """
+    INSERT INTO crowd_density (zone_id, density_percent, timestamp)
+    VALUES ($1, $2, $3);
+    """
+    async with pool.acquire() as conn:
+        await conn.execute(
+            query,
+            event["zoneId"],
+            event["densityPercent"],
+            datetime.fromisoformat(event["timestamp"].replace("Z", "+00:00")),
+        )
+
+        async def consume_crowd_loop() -> None:
+    """Consumer loop for crowd density events from Kafka"""
+    CROWD_TOPIC = "railguard.crowd"
+    
+    while True:
+        consumer: AIOKafkaConsumer | None = None
+        try:
+            consumer = AIOKafkaConsumer(
+                CROWD_TOPIC,
+                bootstrap_servers=KAFKA_BOOTSTRAP_SERVERS,
+                value_deserializer=lambda v: json.loads(v.decode("utf-8")),
+                group_id="railguard-crowd-consumer",
+                enable_auto_commit=True,
+                auto_offset_reset="latest",
+            )
+            await consumer.start()
+            logger.info("Crowd consumer started on topic '%s'", CROWD_TOPIC)
+
+            async for message in consumer:
+                event = message.value
+                
+                # Save to database
+                if state.db_pool is not None:
+                    await save_crowd_density(state.db_pool, event)
+                
+                # Broadcast to WebSocket clients
+                await broadcast_crowd(event)
+        except asyncio.CancelledError:
+            logger.info("Crowd consumer task cancelled")
+            break
+        except Exception as exc:
+            logger.exception("Crowd consume loop failed: %s", exc)
+            await asyncio.sleep(3)
+        finally:
+            if consumer is not None:
+                await consumer.stop()
+
+             @app.on_event("startup")
+async def on_startup() -> None:
+    state.db_pool = await create_db_pool_with_retry()
+    await init_db(state.db_pool)
+    state.consumer_task = asyncio.create_task(consume_loop())
+    state.crowd_consumer_task = asyncio.create_task(consume_crowd_loop())  # NEW
+
+       @app.on_event("shutdown")
+async def on_shutdown() -> None:
+    if state.consumer_task is not None:
+        state.consumer_task.cancel()
+        with contextlib.suppress(Exception):
+            await state.consumer_task
+    
+    # NEW: Stop crowd consumer
+    if state.crowd_consumer_task is not None:
+        state.crowd_consumer_task.cancel()
+        with contextlib.suppress(Exception):
+            await state.crowd_consumer_task
+
+    if state.db_pool is not None:
+        await state.db_pool.close()
+
+      @app.get("/crowd/latest")
+async def get_latest_crowd() -> list[dict[str, Any]]:
+    """
+    Get the most recent crowd density reading for each zone
+    Used for initial page load before WebSocket starts
+    """
+    query = """
+    SELECT DISTINCT ON (zone_id)
+        zone_id,
+        density_percent,
+        timestamp
+    FROM crowd_density
+    ORDER BY zone_id, timestamp DESC;
+    """
+    
+    if state.db_pool is None:
+        return []
+    
+    async with state.db_pool.acquire() as conn:
+        rows = await conn.fetch(query)
+    
+    return [
+        {
+            "zoneId": row["zone_id"],
+            "densityPercent": row["density_percent"],
+            "timestamp": row["timestamp"].isoformat(),
+            "status": "NORMAL" if row["density_percent"] < 50 
+                     else "CROWDED" if row["density_percent"] < 75 
+                     else "CRITICAL"
+        }
+        for row in rows
+    ]
+    
+      
