@@ -3,7 +3,7 @@ import json
 import os
 from typing import List, Dict, Any
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, Query, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from aiokafka import AIOKafkaConsumer
@@ -154,23 +154,32 @@ async def handle_ai_risk(val: Dict[str, Any]):
 
 # REST endpoints
 @app.get("/alerts/latest")
-async def get_alerts_latest():
-    return latest_alerts[-200:]
+async def get_alerts_latest(
+    limit: int = Query(default=100, ge=1, le=500),
+    require_location: bool = Query(default=False),
+):
+    alerts = latest_alerts[-500:]
+    if require_location:
+        alerts = [a for a in alerts if a.get("zoneId") or a.get("stationId")]
+    return alerts[-limit:]
 
 
 @app.get("/crowd/latest")
-async def get_crowd_latest():
-    return list(latest_crowd.values())[:200]
+async def get_crowd_latest(limit: int = Query(default=100, ge=1, le=500)):
+    rows = list(latest_crowd.values())
+    return rows[:limit]
 
 
 @app.get("/trains/latest")
-async def get_trains_latest():
-    return list(latest_trains.values())[:200]
+async def get_trains_latest(limit: int = Query(default=100, ge=1, le=500)):
+    rows = list(latest_trains.values())
+    return rows[:limit]
 
 
 @app.get("/ai/risk/latest", response_model=List[RiskResponse])
-async def get_ai_risk_latest():
-    return list(latest_ai_risk.values())[:200]
+async def get_ai_risk_latest(limit: int = Query(default=100, ge=1, le=500)):
+    rows = list(latest_ai_risk.values())
+    return rows[:limit]
 
 
 @app.get("/health")
