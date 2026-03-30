@@ -18,8 +18,8 @@ services:
       KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
       KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:29092,PLAINTEXT_HOST://0.0.0.0:9092
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
-      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1 
-      KAFKA_CREATE_TOPICS: "railguard.alerts,railguard.crowd,railguard.trains,railguard.cameras"
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_CREATE_TOPICS: "railguard.alerts,railguard.crowd,railguard.trains,railguard.cameras,railguard.crowd.enriched,railguard.ai.risk"
 
   redis:
     image: redis:7-alpine
@@ -49,6 +49,7 @@ services:
       KAFKA_TOPIC: railguard.alerts
       KAFKA_CROWD_TOPIC: railguard.crowd
       KAFKA_TRAIN_TOPIC: railguard.trains
+      KAFKA_AI_RISK_TOPIC: railguard.ai.risk
       POSTGRES_DSN: postgresql://railguard:railguard@postgres:5432/railguard
       LOG_LEVEL: INFO
     ports:
@@ -66,19 +67,50 @@ services:
       KAFKA_TOPIC: railguard.alerts
       KAFKA_CROWD_TOPIC: railguard.crowd
       KAFKA_TRAIN_TOPIC: railguard.trains
+      KAFKA_CAMERA_TOPIC: railguard.cameras
       EVENT_INTERVAL_SECONDS: 1
+
+  yolo-service:
+    build:
+      context: ../services/ml/yolo_service
+      dockerfile: Dockerfile
+    depends_on:
+      - kafka
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      KAFKA_CAMERA_TOPIC: railguard.cameras
+      KAFKA_CROWD_ENRICHED_TOPIC: railguard.crowd.enriched
+      YOLO_MODEL: yolov8n.pt
+      PERSON_CONF_THRESHOLD: "0.45"
+    volumes:
+      - ./models:/models
+
+  ai-worker:
+    build:
+      context: ../services/ml/ai_worker
+      dockerfile: Dockerfile
+    depends_on:
+      - kafka
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      ALERT_TOPIC: railguard.alerts
+      CROWD_TOPIC: railguard.crowd.enriched
+      TRAIN_TOPIC: railguard.trains
+      AI_RISK_TOPIC: railguard.ai.risk
+      TICK_SECONDS: "5"
 
   frontend:
     build:
       context: ../services/frontend
-      dockerfile: Dockerfile
     depends_on:
       - backend
     environment:
       VITE_API_BASE_URL: http://localhost:8000
       VITE_WS_URL: ws://localhost:8000/ws/alerts
+      VITE_WS_AI_RISK_URL: ws://localhost:8000/ws/ai-risk
     ports:
       - "5173:5173"
 
 volumes:
   postgres_data:
+  models:
