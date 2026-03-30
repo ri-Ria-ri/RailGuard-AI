@@ -58,6 +58,7 @@ services:
       dockerfile: Dockerfile
     depends_on:
       - kafka
+    restart: unless-stopped
     environment:
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       KAFKA_TOPIC: railguard.alerts
