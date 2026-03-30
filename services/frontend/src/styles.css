@@ -149,4 +149,153 @@ select {
     align-items: flex-start;
     gap: 0.7rem;
   }
+} 
+
+/* Platform Heatmap Styles */
+.heatmap-container {
+  background: #1f2937;
+  border-radius: 8px;
+  padding: 20px;
+  color: white;
+}
+
+.heatmap-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #374151;
+}
+
+.heatmap-header h2 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.subtitle {
+  margin: 4px 0 0 0;
+  font-size: 14px;
+  color: #9ca3af;
+}
+
+.heatmap-status {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+
+.status-badge {
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.status-live {
+  background: #22c55e;
+  color: white;
+}
+
+.status-connecting {
+  background: #eab308;
+  color: black;
+}
+
+.status-error, .status-disconnected {
+  background: #ef4444;
+  color: white;
+}
+
+.last-update {
+  font-size: 12px;
+  color: #9ca3af;
+}
+
+/* Legend */
+.heatmap-legend {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 20px;
+  padding: 12px;
+  background: #111827;
+  border-radius: 6px;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+}
+
+.legend-color {
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+}
+
+/* Platform Grid */
+.platforms-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.platform-row {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.platform-label {
+  min-width: 100px;
+  font-weight: 600;
+  font-size: 14px;
+  color: #d1d5db;
+}
+
+.zones-row {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 8px;
+  flex: 1;
+}
+
+.zone-cell {
+  padding: 16px;
+  border-radius: 8px;
+  text-align: center;
+  font-weight: 600;
+  transition: transform 0.2s, box-shadow 0.2s;
+  cursor: pointer;
+  min-height: 100px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+}
+
+.zone-cell:hover {
+  transform: scale(1.05);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.zone-id {
+  font-size: 12px;
+  opacity: 0.9;
+}
+
+.zone-density {
+  font-size: 24px;
+  font-weight: 700;
+}
+
+.zone-status {
+  font-size: 11px;
+  text-transform: uppercase;
+  opacity: 0.8;
 }
