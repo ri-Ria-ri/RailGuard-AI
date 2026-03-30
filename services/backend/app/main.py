@@ -18,6 +18,7 @@ logger = logging.getLogger("railguard-backend")
 KAFKA_BOOTSTRAP_SERVERS = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")
 KAFKA_TOPIC = os.getenv("KAFKA_TOPIC", "railguard.alerts")
 KAFKA_CROWD_TOPIC = os.getenv("KAFKA_CROWD_TOPIC", "railguard.crowd")
+KAFKA_TRAIN_TOPIC = os.getenv("KAFKA_TRAIN_TOPIC", "railguard.trains")
 POSTGRES_DSN = os.getenv("POSTGRES_DSN", "postgresql://railguard:railguard@localhost:5432/railguard")
 
 app = FastAPI(title="RailGuard AI Backend", version="0.1.0")
@@ -35,15 +36,19 @@ class AppState:
     db_pool: asyncpg.Pool | None = None
     websocket_clients: set[WebSocket]
     crowd_clients: set[WebSocket]
+    train_clients: set[WebSocket]
     consumer_task: asyncio.Task | None
     crowd_consumer_task: asyncio.Task | None
+    train_consumer_task: asyncio.Task | None
 
     def __init__(self) -> None:
         self.db_pool = None
         self.websocket_clients = set()
         self.crowd_clients = set()
+        self.train_clients = set()
         self.consumer_task = None
         self.crowd_consumer_task = None
+        self.train_consumer_task = None
 
 
 state = AppState()
@@ -191,6 +196,62 @@ async def save_crowd_density(pool: asyncpg.Pool, event: dict[str, Any]) -> None:
         )
 
 
+def normalize_train_event(payload: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "trainNumber": payload.get("trainNumber", "UNKNOWN"),
+        "trainName": payload.get("trainName", "Unknown Train"),
+        "route": payload.get("route", "Unknown Route"),
+        "currentStation": payload.get("currentStation", "UNKNOWN"),
+        "nextStation": payload.get("nextStation", "UNKNOWN"),
+        "etaMinutes": int(payload.get("etaMinutes", 0)),
+        "delayMinutes": int(payload.get("delayMinutes", 0)),
+        "kavachStatus": payload.get("kavachStatus", "ACTIVE"),
+        "timestamp": normalize_timestamp(payload.get("timestamp")).isoformat(),
+    }
+
+
+async def save_train_status(pool: asyncpg.Pool, event: dict[str, Any]) -> None:
+    query = """
+    INSERT INTO train_status (
+        train_number,
+        train_name,
+        route,
+        current_station,
+        next_station,
+        eta_minutes,
+        delay_minutes,
+        kavach_status,
+        timestamp
+    )
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9);
+    """
+    async with pool.acquire() as conn:
+        await conn.execute(
+            query,
+            event["trainNumber"],
+            event["trainName"],
+            event["route"],
+            event["currentStation"],
+            event["nextStation"],
+            event["etaMinutes"],
+            event["delayMinutes"],
+            event["kavachStatus"],
+            normalize_timestamp(event["timestamp"]),
+        )
+
+
+async def broadcast_train(event: dict[str, Any]) -> None:
+    disconnected: list[WebSocket] = []
+    for client in state.train_clients:
+        try:
+            await client.send_json(event)
+        except Exception:
+            disconnected.append(client)
+
+    for client in disconnected:
+        state.train_clients.discard(client)
+
+
 async def consume_loop() -> None:
     while True:
         consumer: AIOKafkaConsumer | None = None
@@ -258,12 +319,46 @@ async def consume_crowd_loop() -> None:
                 await consumer.stop()
 
 
+async def consume_train_loop() -> None:
+    while True:
+        consumer: AIOKafkaConsumer | None = None
+        try:
+            consumer = AIOKafkaConsumer(
+                KAFKA_TRAIN_TOPIC,
+                bootstrap_servers=KAFKA_BOOTSTRAP_SERVERS,
+                value_deserializer=lambda v: json.loads(v.decode("utf-8")),
+                group_id="railguard-train-consumer",
+                enable_auto_commit=True,
+                auto_offset_reset="latest",
+            )
+            await consumer.start()
+            logger.info("Train consumer started on topic '%s'", KAFKA_TRAIN_TOPIC)
+
+            async for message in consumer:
+                event = normalize_train_event(message.value)
+
+                if state.db_pool is not None:
+                    await save_train_status(state.db_pool, event)
+
+                await broadcast_train(event)
+        except asyncio.CancelledError:
+            logger.info("Train consumer task cancelled")
+            break
+        except Exception as exc:
+            logger.exception("Train consume loop failed: %s", exc)
+            await asyncio.sleep(3)
+        finally:
+            if consumer is not None:
+                await consumer.stop()
+
+
 @app.on_event("startup")
 async def on_startup() -> None:
     state.db_pool = await create_db_pool_with_retry()
     await init_db(state.db_pool)
     state.consumer_task = asyncio.create_task(consume_loop())
     state.crowd_consumer_task = asyncio.create_task(consume_crowd_loop())
+    state.train_consumer_task = asyncio.create_task(consume_train_loop())
 
 
 @app.on_event("shutdown")
@@ -277,6 +372,11 @@ async def on_shutdown() -> None:
         state.crowd_consumer_task.cancel()
         with contextlib.suppress(Exception):
             await state.crowd_consumer_task
+
+    if state.train_consumer_task is not None:
+        state.train_consumer_task.cancel()
+        with contextlib.suppress(Exception):
+            await state.train_consumer_task
 
     if state.db_pool is not None:
         await state.db_pool.close()
@@ -349,6 +449,45 @@ async def get_latest_crowd() -> list[dict[str, Any]]:
     ]
 
 
+@app.get("/trains/latest")
+async def get_latest_trains() -> list[dict[str, Any]]:
+    query = """
+    SELECT DISTINCT ON (train_number)
+        train_number,
+        train_name,
+        route,
+        current_station,
+        next_station,
+        eta_minutes,
+        delay_minutes,
+        kavach_status,
+        timestamp
+    FROM train_status
+    ORDER BY train_number, timestamp DESC;
+    """
+
+    if state.db_pool is None:
+        return []
+
+    async with state.db_pool.acquire() as conn:
+        rows = await conn.fetch(query)
+
+    return [
+        {
+            "trainNumber": row["train_number"],
+            "trainName": row["train_name"],
+            "route": row["route"],
+            "currentStation": row["current_station"],
+            "nextStation": row["next_station"],
+            "etaMinutes": row["eta_minutes"],
+            "delayMinutes": row["delay_minutes"],
+            "kavachStatus": row["kavach_status"],
+            "timestamp": row["timestamp"].isoformat(),
+        }
+        for row in rows
+    ]
+
+
 @app.websocket("/ws/alerts")
 async def websocket_alerts(websocket: WebSocket) -> None:
     await websocket.accept()
@@ -375,3 +514,17 @@ async def websocket_crowd(websocket: WebSocket) -> None:
         state.crowd_clients.discard(websocket)
     except Exception:
         state.crowd_clients.discard(websocket)
+
+
+@app.websocket("/ws/trains")
+async def websocket_trains(websocket: WebSocket) -> None:
+    await websocket.accept()
+    state.train_clients.add(websocket)
+
+    try:
+        while True:
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        state.train_clients.discard(websocket)
+    except Exception:
+        state.train_clients.discard(websocket)

@@ -48,6 +48,7 @@ services:
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       KAFKA_TOPIC: railguard.alerts
       KAFKA_CROWD_TOPIC: railguard.crowd
+      KAFKA_TRAIN_TOPIC: railguard.trains
       POSTGRES_DSN: postgresql://railguard:railguard@postgres:5432/railguard
       LOG_LEVEL: INFO
     ports:
@@ -64,6 +65,7 @@ services:
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       KAFKA_TOPIC: railguard.alerts
       KAFKA_CROWD_TOPIC: railguard.crowd
+      KAFKA_TRAIN_TOPIC: railguard.trains
       EVENT_INTERVAL_SECONDS: 1
 
   frontend:
