@@ -2,6 +2,7 @@ import asyncio
 import json
 import os
 import random
+import time
 import uuid
 from datetime import datetime, timezone
 
@@ -11,7 +12,14 @@ KAFKA_BOOTSTRAP_SERVERS = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")
 KAFKA_TOPIC = os.getenv("KAFKA_TOPIC", "railguard.alerts")
 KAFKA_CROWD_TOPIC = os.getenv("KAFKA_CROWD_TOPIC", "railguard.crowd")
 KAFKA_TRAIN_TOPIC = os.getenv("KAFKA_TRAIN_TOPIC", "railguard.trains")
+KAFKA_ALERTS_DLQ_TOPIC = os.getenv("KAFKA_ALERTS_DLQ_TOPIC", "railguard.alerts.dlq")
+KAFKA_CROWD_DLQ_TOPIC = os.getenv("KAFKA_CROWD_DLQ_TOPIC", "railguard.crowd.dlq")
+KAFKA_TRAINS_DLQ_TOPIC = os.getenv("KAFKA_TRAINS_DLQ_TOPIC", "railguard.trains.dlq")
 EVENT_INTERVAL_SECONDS = float(os.getenv("EVENT_INTERVAL_SECONDS", "1"))
+PRODUCER_LINGER_MS = int(os.getenv("PRODUCER_LINGER_MS", "10"))
+PRODUCER_BATCH_SIZE = int(os.getenv("PRODUCER_BATCH_SIZE", "65536"))
+PRODUCER_COMPRESSION_TYPE = os.getenv("PRODUCER_COMPRESSION_TYPE", "lz4")
+HEARTBEAT_FILE = os.getenv("HEARTBEAT_FILE", "/tmp/simulator_heartbeat")
 
 SEVERITIES = ["LOW", "MEDIUM", "HIGH"]
 ZONES = ["PF-1", "PF-2", "PF-3", "ENTRY-A", "ENTRY-B", "CONCOURSE-1", "CONCOURSE-2"]
@@ -116,10 +124,59 @@ def generate_train_event() -> dict:
         "timestamp": datetime.now(timezone.utc).isoformat(),
     }
 
+
+def validate_event(event_type: str, payload: dict) -> tuple[bool, str]:
+    zone_id = payload.get("zoneId") or payload.get("stationId")
+    if not zone_id:
+        return False, "missing zoneId/stationId"
+    if event_type == "alert" and not payload.get("severity"):
+        return False, "missing severity"
+    if event_type == "crowd" and payload.get("densityPercent") is None:
+        return False, "missing densityPercent"
+    if event_type == "train" and payload.get("delayMinutes") is None:
+        return False, "missing delayMinutes"
+    return True, ""
+
+
+def route_for(event_type: str) -> tuple[str, str]:
+    if event_type == "alert":
+        return KAFKA_TOPIC, KAFKA_ALERTS_DLQ_TOPIC
+    if event_type == "crowd":
+        return KAFKA_CROWD_TOPIC, KAFKA_CROWD_DLQ_TOPIC
+    return KAFKA_TRAIN_TOPIC, KAFKA_TRAINS_DLQ_TOPIC
+
+
+def build_dlq_payload(event_type: str, payload: dict, reason: str) -> dict:
+    return {
+        "eventType": event_type,
+        "reason": reason,
+        "receivedAt": datetime.now(timezone.utc).isoformat(),
+        "payload": payload,
+    }
+
+
+def touch_heartbeat() -> None:
+    with open(HEARTBEAT_FILE, "w", encoding="utf-8") as f:
+        f.write(str(time.time()))
+
+
+async def send_with_dlq(producer: AIOKafkaProducer, event_type: str, payload: dict):
+    topic, dlq_topic = route_for(event_type)
+    zone = payload.get("zoneId") or payload.get("stationId") or "unknown"
+    is_valid, reason = validate_event(event_type, payload)
+    if not is_valid:
+        dlq_payload = build_dlq_payload(event_type, payload, reason)
+        return await producer.send(dlq_topic, dlq_payload, key=zone)
+    return await producer.send(topic, payload, key=zone)
+
 async def run_producer() -> None:
     producer = AIOKafkaProducer(
         bootstrap_servers=KAFKA_BOOTSTRAP_SERVERS,
         value_serializer=lambda v: json.dumps(v).encode("utf-8"),
+        key_serializer=lambda v: str(v).encode("utf-8"),
+        linger_ms=PRODUCER_LINGER_MS,
+        max_batch_size=PRODUCER_BATCH_SIZE,
+        compression_type=PRODUCER_COMPRESSION_TYPE,
     )
     await producer.start()
     try:
@@ -128,9 +185,15 @@ async def run_producer() -> None:
             crowd_event = generate_crowd_event()
             train_event = generate_train_event()
 
-            await producer.send_and_wait(KAFKA_TOPIC, alert_event)
-            await producer.send_and_wait(KAFKA_CROWD_TOPIC, crowd_event)
-            await producer.send_and_wait(KAFKA_TRAIN_TOPIC, train_event)
+            send_tasks = [
+                send_with_dlq(producer, "alert", alert_event),
+                send_with_dlq(producer, "crowd", crowd_event),
+                send_with_dlq(producer, "train", train_event),
+            ]
+            metadata_futures = await asyncio.gather(*send_tasks)
+            await asyncio.gather(*metadata_futures)
+
+            touch_heartbeat()
 
             print(
                 f"Published alert {alert_event['id']} {alert_event['category']}/{alert_event['subType']} "
