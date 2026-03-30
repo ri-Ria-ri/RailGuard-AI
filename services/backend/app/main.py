@@ -69,9 +69,44 @@ async def init_db(pool: asyncpg.Pool) -> None:
         raw_payload JSONB NOT NULL,
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
+    """ 
+    crowd_query = """
+    CREATE TABLE IF NOT EXISTS crowd_density (
+        id SERIAL PRIMARY KEY,
+        zone_id TEXT NOT NULL,
+        density_percent INTEGER NOT NULL,
+        timestamp TIMESTAMPTZ NOT NULL,
+        created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+    CREATE INDEX IF NOT EXISTS idx_crowd_zone_time 
+    ON crowd_density(zone_id, timestamp DESC);
     """
+    
+    # NEW: Train status table
+    train_query = """
+    CREATE TABLE IF NOT EXISTS train_status (
+        id SERIAL PRIMARY KEY,
+        train_number TEXT NOT NULL,
+        train_name TEXT NOT NULL,
+        route TEXT NOT NULL,
+        current_station TEXT,
+        next_station TEXT,
+        eta_minutes INTEGER,
+        delay_minutes INTEGER DEFAULT 0,
+        kavach_status TEXT DEFAULT 'ACTIVE',
+        timestamp TIMESTAMPTZ NOT NULL,
+        created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+    CREATE INDEX IF NOT EXISTS idx_train_number_time 
+    ON train_status(train_number, timestamp DESC);
+    """
+    
     async with pool.acquire() as conn:
         await conn.execute(query)
+        await conn.execute(crowd_query)    # NEW
+        await conn.execute(train_query)    # NEW
+    
+    logger.info("Database tables initialized")
 
 
 def normalize_timestamp(value: str | None) -> datetime:
