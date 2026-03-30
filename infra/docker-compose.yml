@@ -102,6 +102,7 @@ services:
   frontend:
     build:
       context: ../services/frontend
+      dockerfile: Dockerfile
     depends_on:
       - backend
     environment:
