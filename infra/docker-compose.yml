@@ -95,6 +95,7 @@ services:
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       ALERT_TOPIC: railguard.alerts
       CROWD_TOPIC: railguard.crowd.enriched
+      CROWD_FALLBACK_TOPIC: railguard.crowd
       TRAIN_TOPIC: railguard.trains
       AI_RISK_TOPIC: railguard.ai.risk
       TICK_SECONDS: "5"

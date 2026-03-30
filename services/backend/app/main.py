@@ -153,9 +153,25 @@ async def handle_ai_risk(val: Dict[str, Any]):
             print("AI risk DB insert error:", e)
 
 # REST endpoints
+@app.get("/alerts/latest")
+async def get_alerts_latest():
+    return latest_alerts[-200:]
+
+
+@app.get("/crowd/latest")
+async def get_crowd_latest():
+    return list(latest_crowd.values())[:200]
+
+
+@app.get("/trains/latest")
+async def get_trains_latest():
+    return list(latest_trains.values())[:200]
+
+
 @app.get("/ai/risk/latest", response_model=List[RiskResponse])
 async def get_ai_risk_latest():
     return list(latest_ai_risk.values())[:200]
+
 
 @app.get("/health")
 async def health():
