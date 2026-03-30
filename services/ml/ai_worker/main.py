@@ -10,6 +10,7 @@ from aiokafka import AIOKafkaConsumer, AIOKafkaProducer
 BOOTSTRAP = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "kafka:29092")
 ALERT_TOPIC = os.getenv("ALERT_TOPIC", "railguard.alerts")
 CROWD_TOPIC = os.getenv("CROWD_TOPIC", "railguard.crowd.enriched")
+CROWD_FALLBACK_TOPIC = os.getenv("CROWD_FALLBACK_TOPIC", "railguard.crowd")
 TRAIN_TOPIC = os.getenv("TRAIN_TOPIC", "railguard.trains")
 AI_RISK_TOPIC = os.getenv("AI_RISK_TOPIC", "railguard.ai.risk")
 TICK_SECONDS = float(os.getenv("TICK_SECONDS", "5"))
@@ -74,8 +75,12 @@ async def run():
     producer = AIOKafkaProducer(bootstrap_servers=BOOTSTRAP)
     await producer.start()
 
+    topics = [ALERT_TOPIC, CROWD_TOPIC, TRAIN_TOPIC]
+    if CROWD_FALLBACK_TOPIC and CROWD_FALLBACK_TOPIC not in topics:
+        topics.append(CROWD_FALLBACK_TOPIC)
+
     consumer = AIOKafkaConsumer(
-        ALERT_TOPIC, CROWD_TOPIC, TRAIN_TOPIC,
+        *topics,
         bootstrap_servers=BOOTSTRAP,
         enable_auto_commit=True,
         value_deserializer=lambda m: json.loads(m.decode("utf-8")),
@@ -98,8 +103,8 @@ async def run():
                 if len(dq) > MAX_ALERTS:
                     dq.popleft()
 
-            elif topic == CROWD_TOPIC:
-                zone = payload.get("zoneId") or "unknown"
+            elif topic in (CROWD_TOPIC, CROWD_FALLBACK_TOPIC):
+                zone = payload.get("zoneId") or payload.get("stationId") or "unknown"
                 crowd_state[zone] = payload
 
             elif topic == TRAIN_TOPIC:

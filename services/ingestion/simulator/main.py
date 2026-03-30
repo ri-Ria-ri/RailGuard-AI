@@ -14,8 +14,9 @@ KAFKA_TRAIN_TOPIC = os.getenv("KAFKA_TRAIN_TOPIC", "railguard.trains")
 EVENT_INTERVAL_SECONDS = float(os.getenv("EVENT_INTERVAL_SECONDS", "1"))
 
 SEVERITIES = ["LOW", "MEDIUM", "HIGH"]
-ZONES = ["PF-1", "PF-2", "PF-3", "ENTRY-A", "ENTRY-B"]
+ZONES = ["PF-1", "PF-2", "PF-3", "ENTRY-A", "ENTRY-B", "CONCOURSE-1", "CONCOURSE-2"]
 SOURCES = ["cctv", "rtis", "iot"]
+
 TRAINS = [
     {"number": "12951", "name": "Mumbai Rajdhani", "route": "Mumbai -> Delhi"},
     {"number": "12001", "name": "Shatabdi Express", "route": "Delhi -> Chandigarh"},
@@ -25,16 +26,56 @@ TRAINS = [
 STATIONS = ["Mumbai CSMT", "Vadodara", "Kota", "New Delhi", "Kanpur", "Bhopal", "Nagpur"]
 KAVACH_STATES = ["ACTIVE", "ACTIVE", "ACTIVE", "DEGRADED"]
 
+# Alert taxonomy
+CATEGORY_WEIGHTS = [
+    ("TRAIN_OPS", 0.30),
+    ("PASSENGER", 0.25),
+    ("CCTV", 0.20),
+    ("ENV", 0.15),
+    ("COMMS", 0.10),
+]
+
+ALERT_POOLS = {
+    "TRAIN_OPS": [
+        ("signal_fault", "Signal fault detected", "HIGH"),
+        ("speed_violation", "Speed violation detected", "MEDIUM"),
+        ("door_fault", "Door fault detected", "MEDIUM"),
+    ],
+    "PASSENGER": [
+        ("passenger_fallen", "Passenger fallen on platform", "HIGH"),
+        ("unattended_package", "Unattended package reported", "HIGH"),
+        ("help_point_activated", "Emergency help point activated", "MEDIUM"),
+    ],
+    "CCTV": [
+        ("camera_offline", "Camera offline", "MEDIUM"),
+        ("restricted_area_intrusion", "Restricted area intrusion", "HIGH"),
+    ],
+    "ENV": [
+        ("smoke_detected", "Smoke detected", "HIGH"),
+        ("power_supply_failure", "Power supply failure", "MEDIUM"),
+    ],
+    "COMMS": [
+        ("radio_channel_failure", "Radio channel failure", "MEDIUM"),
+        ("control_center_comms_failure", "Control centre comms failure", "HIGH"),
+    ],
+}
+
+def pick_weighted(weighted_pairs):
+    keys, weights = zip(*weighted_pairs)
+    return random.choices(keys, weights=weights, k=1)[0]
 
 def generate_alert() -> dict:
-    severity = random.choices(SEVERITIES, weights=[0.6, 0.3, 0.1], k=1)[0]
+    category = pick_weighted(CATEGORY_WEIGHTS)
+    subType, message, severity = random.choice(ALERT_POOLS[category])
     risk = round(random.uniform(0.2, 0.98), 3)
-
     return {
         "id": str(uuid.uuid4()),
         "source": random.choice(SOURCES),
-        "zoneId": random.choice(ZONES),
+        "zoneId": random.choice(ZONES),  # always set -> no unknowns
         "severity": severity,
+        "category": category,
+        "subType": subType,
+        "message": message,
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "riskScore": risk,
         "explanation": {
@@ -46,15 +87,16 @@ def generate_alert() -> dict:
         },
     }
 
-
 def generate_crowd_event() -> dict:
     density = random.randint(5, 95)
+    person_count = int((density / 100.0) * random.randint(50, 200))
     return {
         "zoneId": random.choice(ZONES),
         "densityPercent": density,
+        "personCount": person_count,
+        "crowdClass": "CRITICAL" if density > 80 else "CROWDED" if density > 50 else "NORMAL",
         "timestamp": datetime.now(timezone.utc).isoformat(),
     }
-
 
 def generate_train_event() -> dict:
     train = random.choice(TRAINS)
@@ -66,12 +108,13 @@ def generate_train_event() -> dict:
         "route": train["route"],
         "currentStation": STATIONS[current_idx],
         "nextStation": STATIONS[current_idx + 1],
+        "zoneId": random.choice(ZONES),
+        "stationId": STATIONS[current_idx],
         "etaMinutes": random.randint(2, 35),
         "delayMinutes": delay,
         "kavachStatus": random.choice(KAVACH_STATES),
         "timestamp": datetime.now(timezone.utc).isoformat(),
     }
-
 
 async def run_producer() -> None:
     producer = AIOKafkaProducer(
@@ -79,7 +122,6 @@ async def run_producer() -> None:
         value_serializer=lambda v: json.dumps(v).encode("utf-8"),
     )
     await producer.start()
-
     try:
         while True:
             alert_event = generate_alert()
@@ -91,18 +133,17 @@ async def run_producer() -> None:
             await producer.send_and_wait(KAFKA_TRAIN_TOPIC, train_event)
 
             print(
-                f"Published alert {alert_event['id']} ({alert_event['severity']}) zone {alert_event['zoneId']}"
+                f"Published alert {alert_event['id']} {alert_event['category']}/{alert_event['subType']} "
+                f"({alert_event['severity']}) zone {alert_event['zoneId']}"
             )
+            print(f"Published crowd density {crowd_event['densityPercent']}% zone {crowd_event['zoneId']}")
             print(
-                f"Published crowd density {crowd_event['densityPercent']}% zone {crowd_event['zoneId']}"
-            )
-            print(
-                f"Published train {train_event['trainNumber']} ETA {train_event['etaMinutes']}m delay {train_event['delayMinutes']}m"
+                f"Published train {train_event['trainNumber']} ETA {train_event['etaMinutes']}m "
+                f"delay {train_event['delayMinutes']}m"
             )
             await asyncio.sleep(EVENT_INTERVAL_SECONDS)
     finally:
         await producer.stop()
-
 
 if __name__ == "__main__":
     asyncio.run(run_producer())
