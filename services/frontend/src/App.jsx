@@ -8,6 +8,7 @@ const WS_CROWD = import.meta.env.VITE_WS_CROWD_URL || "ws://localhost:8000/ws/cr
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
 const WS_FLUSH_MS = 100;
 const MAX_ALERTS = 100;
+const MAX_CAMERA_ALERTS = 80;
 const MAX_TRAINS = 100;
 const MAX_CROWD_ZONES = 100;
 const MAX_RISK_ZONES = 100;
@@ -207,6 +208,76 @@ const AlertsPanel = memo(function AlertsPanel() {
   );
 });
 
+/* ---------- CAMERA ALERTS (dedicated operational panel) ---------- */
+const CameraAlertsPanel = memo(function CameraAlertsPanel() {
+  const [cameraAlerts, setCameraAlerts] = useState([]);
+
+  const isCameraAlert = useCallback((a) => {
+    if (!a) return false;
+    return (
+      a.category === "CAMERA" ||
+      a.source === "camera_watchdog" ||
+      (typeof a.subType === "string" && a.subType.startsWith("camera_"))
+    );
+  }, []);
+
+  const handleAlertBatch = useCallback(
+    (batch) => {
+      setCameraAlerts((prev) => {
+        const incoming = batch.filter(isCameraAlert).filter((a) => a.zoneId || a.stationId);
+        return [...incoming.reverse(), ...prev].slice(0, MAX_CAMERA_ALERTS);
+      });
+    },
+    [isCameraAlert],
+  );
+
+  useBufferedWs(WS_ALERTS, handleAlertBatch);
+
+  useEffect(() => {
+    const id = setInterval(async () => {
+      const res = await fetch(`${API_BASE}/alerts/latest?limit=${MAX_ALERTS}`);
+      const data = await res.json();
+      setCameraAlerts(
+        (Array.isArray(data) ? data : [])
+          .filter(isCameraAlert)
+          .filter((a) => a.zoneId || a.stationId)
+          .slice(0, MAX_CAMERA_ALERTS),
+      );
+    }, 10000);
+    return () => clearInterval(id);
+  }, [isCameraAlert]);
+
+  return (
+    <div className="card card-camera">
+      <div className="card-title-row">
+        <div className="card-title">Camera Alerts</div>
+        <span className="camera-count">{cameraAlerts.length}</span>
+      </div>
+      {cameraAlerts.length === 0 && <div className="muted">No camera alerts yet.</div>}
+      {cameraAlerts.length > 0 && (
+        <div className="camera-alerts-viewport">
+          {cameraAlerts.map((a, idx) => (
+            <div key={`${a.id || a.timestamp || "camera"}-${idx}`} className="camera-alert-row">
+              <span className={`pill sev-${(a.severity || "low").toLowerCase()}`}>{a.severity || "LOW"}</span>
+              <div className="alert-body">
+                <div className="alert-line">
+                  <span>{a.message || "Camera event"}</span>
+                  <span className="tag tag-camera">CAMERA</span>
+                  {a.subType && <span className="tag tag-sub">{a.subType}</span>}
+                </div>
+                <div className="muted">
+                  {(a.zoneId || a.stationId) ?? "unknown"}
+                  {a.cameraId ? ` • ${a.cameraId}` : ""}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+});
+
 /* ---------- TRAINS (drops items without destination) ---------- */
 const TrainsPanel = memo(function TrainsPanel() {
   const [trains, setTrains] = useState({});
@@ -347,6 +418,7 @@ export default function App() {
   return (
     <div className="layout">
       <RiskPanel />
+      <CameraAlertsPanel />
       <div className="three-col">
         <TrainsPanel />
         <CrowdPanel />

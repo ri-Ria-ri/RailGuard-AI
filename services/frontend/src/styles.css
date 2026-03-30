@@ -45,12 +45,38 @@ body {
   box-shadow: 0 14px 32px rgba(0,0,0,0.28);
 }
 .card-wide { width: 100%; }
+.card-camera {
+  width: 100%;
+  border-color: #23416b;
+  background: linear-gradient(180deg, rgba(12, 30, 56, 0.9) 0%, rgba(15, 23, 42, 1) 35%);
+}
 .card-title {
   font-size: 14px;
   letter-spacing: 1px;
   text-transform: uppercase;
   color: var(--muted);
   margin-bottom: 10px;
+  font-weight: 700;
+}
+.card-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+.camera-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 999px;
+  border: 1px solid #1d4ed8;
+  background: #0b1e44;
+  color: #bfdbfe;
+  font-family: var(--mono);
+  font-size: 11px;
   font-weight: 700;
 }
 
@@ -74,6 +100,21 @@ body {
 .alerts-viewport {
   overflow-y: auto;
   padding-right: 4px;
+}
+.camera-alerts-viewport {
+  max-height: 260px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+.camera-alert-row {
+  display:flex;
+  gap:10px;
+  align-items:flex-start;
+  padding: 10px 0;
+  border-bottom: 1px solid #1e3a5f;
+}
+.camera-alert-row:last-child {
+  border-bottom: none;
 }
 .alert-spacer {
   width: 100%;
@@ -109,10 +150,16 @@ body {
   background: #0b1e44;
   color: #bfdbfe;
 }
+.tag-camera {
+  border-color: #0369a1;
+  background: #082f49;
+  color: #bae6fd;
+}
 .pill { border-radius:999px; padding:3px 10px; font-size:11px; font-weight:700; font-family: var(--mono); }
 .sev-low { background:#14532d; color:#bbf7d0; }
 .sev-medium { background:#713f12; color:#fde68a; }
 .sev-high { background:#7f1d1d; color:#fecdd3; }
+.sev-critical { background:#4c0519; color:#fecdd3; border: 1px solid #9f1239; }
 
 /* Trains */
 .train-row .pill { background:#0ea5e9; color:#0b1020; }
@@ -139,10 +186,13 @@ body {
 /* Scrollbar */
 .train-list::-webkit-scrollbar,
 .alerts-viewport::-webkit-scrollbar,
+.camera-alerts-viewport::-webkit-scrollbar,
 body::-webkit-scrollbar { width: 8px; }
 .train-list::-webkit-scrollbar-track,
 .alerts-viewport::-webkit-scrollbar-track,
+.camera-alerts-viewport::-webkit-scrollbar-track,
 body::-webkit-scrollbar-track { background: #0d1424; }
 .train-list::-webkit-scrollbar-thumb,
 .alerts-viewport::-webkit-scrollbar-thumb,
+.camera-alerts-viewport::-webkit-scrollbar-thumb,
 body::-webkit-scrollbar-thumb { background: #1f2937; border-radius: 8px; }

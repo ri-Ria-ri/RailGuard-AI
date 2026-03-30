@@ -19,7 +19,7 @@ services:
       KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:29092,PLAINTEXT_HOST://0.0.0.0:9092
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-      KAFKA_CREATE_TOPICS: "railguard.alerts:6:1,railguard.crowd:6:1,railguard.trains:6:1,railguard.cameras:3:1,railguard.crowd.enriched:6:1,railguard.ai.risk:3:1,railguard.alerts.dlq:3:1,railguard.crowd.dlq:3:1,railguard.trains.dlq:3:1"
+      KAFKA_CREATE_TOPICS: "railguard.alerts:6:1,railguard.crowd:6:1,railguard.trains:6:1,railguard.cameras:3:1,railguard.crowd.enriched:6:1,railguard.ai.risk:3:1,railguard.alerts.dlq:3:1,railguard.crowd.dlq:3:1,railguard.trains.dlq:3:1,railguard.cameras.dlq:3:1"
 
   redis:
     image: redis:7-alpine
@@ -128,6 +128,40 @@ services:
       HEARTBEAT_INTERVAL_SECONDS: "5"
     healthcheck:
       test: ["CMD", "python", "-c", "import os,time,sys; p='/tmp/ai_worker_heartbeat'; sys.exit(0 if os.path.exists(p) and time.time()-os.path.getmtime(p)<30 else 1)"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  camera-watchdog:
+    build:
+      context: ../services/camera-watchdog
+      dockerfile: Dockerfile
+    depends_on:
+      - kafka
+    restart: unless-stopped
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      KAFKA_CAMERA_TOPIC: railguard.cameras
+      KAFKA_ALERTS_TOPIC: railguard.alerts
+      KAFKA_CAMERA_DLQ_TOPIC: railguard.cameras.dlq
+      PRODUCER_LINGER_MS: "10"
+      PRODUCER_BATCH_SIZE: "65536"
+      PRODUCER_COMPRESSION_TYPE: "lz4"
+      CONSUMER_MAX_POLL_RECORDS: "500"
+      CONSUMER_FETCH_MAX_WAIT_MS: "100"
+      FRAME_FREEZE_THRESHOLD: "5"
+      FRAME_STALENESS_SECONDS: "30"
+      MOTION_SENSITIVITY: "0.7"
+      MOTION_HISTORY_SIZE: "20"
+      MOTION_BASELINE_THRESHOLD: "0.15"
+      QUEUE_MAXSIZE: "256"
+      QUEUE_PUT_TIMEOUT_SECONDS: "0.05"
+      TICK_SECONDS: "5"
+      HEARTBEAT_FILE: /tmp/camera_watchdog_heartbeat
+      HEARTBEAT_INTERVAL_SECONDS: "5"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import os,time,sys; p='/tmp/camera_watchdog_heartbeat'; sys.exit(0 if os.path.exists(p) and time.time()-os.path.getmtime(p)<30 else 1)"]
       interval: 15s
       timeout: 5s
       retries: 3
