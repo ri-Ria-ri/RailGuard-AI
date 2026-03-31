@@ -79,6 +79,36 @@ body {
   font-size: 11px;
   font-weight: 700;
 }
+.camera-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.filter-group {
+  display: inline-flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.filter-chip {
+  border: 1px solid #27466d;
+  background: #0b1e35;
+  color: #cbd5e1;
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.filter-chip:hover {
+  border-color: #3b82f6;
+  color: #dbeafe;
+}
+.filter-chip.active {
+  border-color: #60a5fa;
+  background: #0b2f63;
+  color: #eff6ff;
+}
 
 /* Rows */
 .risk-row, .alert-row, .train-row, .crowd-row { padding: 10px 0; border-bottom: 1px solid var(--border); }
