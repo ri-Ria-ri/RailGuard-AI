@@ -26,33 +26,6 @@ Here is what each main folder is for:
 - schemas: JSON schema files for event formats
 - docs: architecture and planning documents
 
-## What Is Already Working
-
-- Docker-based startup for the full stack
-- Backend health endpoint
-- Alerts API and alerts WebSocket
-- Crowd latest API
-- Simulator publishing alert and crowd events
-- Data persistence in PostgreSQL
-
-## Quick Start (Recommended)
-
-If you are new to coding, use Docker. It is the easiest path.
-
-1. Install Docker Desktop.
-2. Open a terminal in the project root.
-3. Run:
-
-```bash
-docker compose -f infra/docker-compose.yml up --build
-```
-
-4. Open these in your browser:
-
-- Dashboard: http://localhost:5173
-- Backend health: http://localhost:8000/health
-- Alerts API: http://localhost:8000/alerts
-- Crowd API: http://localhost:8000/crowd/latest
 
 ## Important Setup Note (Simple Version)
 
@@ -84,3 +57,87 @@ Think of this repository as a working foundation.
 You can already run and demo live data flow.
 
 Next, build feature panels one by one on top of this base.
+
+# RailGuard-AI
+
+RailGuard-AI is a modular system for simulating, processing, and visualizing railway safety events such as alerts, crowd monitoring, train movements, and AI‑based risk scoring. It follows a layered architecture with ingestion, streaming, intelligence, application, storage, and presentation components.
+
+---
+
+## 📐 Simplified Architecture
+
+simplified architechture diagram: 
+RailGuard-AI/
+├─ infra/
+│  ├─ docker-compose.yml         # Orchestrates services (Kafka, backend, frontend, etc.)
+│  └─ (other infra configs)
+├─ services/
+│  ├─ backend/                   # REST & WebSocket API
+│  ├─ frontend/                  # RailGuard dashboard (Vite/React)
+│  │  ├─ src/
+│  │  │  ├─ App.jsx              # UI panels (AI Risk, Alerts, Trains, Crowd)
+│  │  │  └─ styles.css           # Dashboard styling
+│  ├─ ingestion/
+│  │  └─ simulator/
+│  │     ├─ main.py              # Generates alerts, crowd, and train events -> Kafka topics
+│  │     ├─ Dockerfile
+│  │     └─ requirements.txt
+│  └─ ml/                        # AI/ML risk scoring service (consumes Kafka, publishes risk)
+├─ schemas/                      # (any shared schemas/definitions)
+├─ docs/                         # Documentation assets
+├─ Plan.txt                      # Project plan/notes
+└─ README.md                     # Project overview
+
+
+
+
+## Quick Start (Recommended)
+
+If you are new to coding, use Docker. It is the easiest path.
+
+1. Install Docker Desktop.
+2. Open a terminal in the project root.
+3. Run:
+
+```bash
+docker compose -f infra/docker-compose.yml up --build
+```
+
+4. Open these in your browser:
+
+- Dashboard: http://localhost:5173
+- Backend health: http://localhost:8000/health
+- Alerts API: http://localhost:8000/alerts
+- Crowd API: http://localhost:8000/crowd/latest
+
+## 🔎 Component Overview
+
+### Backend (services/backend)
+- Built with **FastAPI**.
+- Reads live events from **Kafka** (alerts, crowd, train status).
+- Persists data into **Postgres** for history and analytics.
+- Exposes **REST APIs** (alerts, crowd, trains) and **WebSocket endpoints** for real‑time dashboards.
+- Provides health checks and monitoring endpoints.
+
+### Frontend (services/frontend)
+- Developed with **React + Vite**.
+- Displays live railway safety data in a dashboard format.
+- Panels include:
+  - **Alerts Panel**: shows low/medium/high safety alerts.
+  - **Crowd Panel**: visualizes density by zone.
+  - **Train Panel** (planned): train movements and status board.
+  - **AI Risk Panel** (planned): risk scores from ML service.
+- Connects to backend via REST and WebSocket for real‑time updates.
+
+### Overall Project
+RailGuard‑AI is a **modular railway safety monitoring system**.  
+It simulates, processes, and visualizes events such as:
+- Safety alerts
+- Crowd monitoring
+- Train movements
+- AI‑based risk scoring
+
+The architecture follows a layered flow:
+**Ingestion → Streaming → Intelligence → Application → Storage → Presentation**
+
+This design makes it easy to extend the system with new event types, ML services, and UI panels while keeping the core pipeline stable.

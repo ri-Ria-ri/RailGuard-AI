@@ -1,0 +1,28 @@
+{
+  "name": "railguard-ai",
+  "version": "1.0.0",
+  "description": "RailGuard AI is a demo project for railway safety monitoring.",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sampatil3615-cloud/RailGuard-AI.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/sampatil3615-cloud/RailGuard-AI/issues"
+  },
+  "homepage": "https://github.com/sampatil3615-cloud/RailGuard-AI#readme",
+  "dependencies": {
+    "express": "^5.2.1",
+    "heatmap.js": "^2.0.5"
+  }
+}

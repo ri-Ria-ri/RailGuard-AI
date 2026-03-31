@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from aiokafka import AIOKafkaConsumer
 import asyncpg
+import tracemalloc   # <-- added for heap profiling
 
 KAFKA_BOOTSTRAP = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "kafka:29092")
 ALERT_TOPIC = os.getenv("KAFKA_TOPIC", "railguard.alerts")
@@ -167,6 +168,27 @@ async def health():
         "ai_zones": len(latest_ai_risk),
     }
 
+# NEW: Heap metrics endpoint
+tracemalloc.start()
+
+@app.get("/metrics/heap")
+async def get_heap():
+    snapshot = tracemalloc.take_snapshot()
+    stats = snapshot.statistics("lineno")
+
+    points = []
+    max_val = 0
+    width, height = 800, 600
+
+    for i, stat in enumerate(stats[:50]):
+        x = (i * 15) % width
+        y = (i * 30) % height
+        value = stat.size // 1024  # KB
+        max_val = max(max_val, value)
+        points.append({"x": x, "y": y, "value": value})
+
+    return {"max": max_val, "data": points}
+
 # WebSockets
 @app.websocket("/ws/alerts")
 async def ws_alerts(ws: WebSocket):
@@ -202,4 +224,62 @@ async def ws_ai_risk(ws: WebSocket):
         while True:
             await ws.receive_text()
     except WebSocketDisconnect:
-        ai_ws.disconnect(ws)
+        ai_ws.disconnect(ws) 
+
+import tracemalloc
+from fastapi import WebSocket, WebSocketDisconnect
+
+# start tracemalloc once at startup
+tracemalloc.start()
+
+# WebSocket manager for heap metrics
+class HeapConnectionManager:
+    def __init__(self):
+        self.active: list[WebSocket] = []
+
+    async def connect(self, ws: WebSocket):
+        await ws.accept()
+        self.active.append(ws)
+
+    def disconnect(self, ws: WebSocket):
+        if ws in self.active:
+            self.active.remove(ws)
+
+    async def broadcast(self, data: dict):
+        stale = []
+        for ws in self.active:
+            try:
+                await ws.send_json(data)
+            except Exception:
+                stale.append(ws)
+        for ws in stale:
+            self.disconnect(ws)
+
+heap_ws = HeapConnectionManager()
+
+@app.websocket("/ws/heap")
+async def ws_heap(ws: WebSocket):
+    await heap_ws.connect(ws)
+    try:
+        while True:
+            # take snapshot every 5 seconds
+            snapshot = tracemalloc.take_snapshot()
+            stats = snapshot.statistics("lineno")
+
+            points = []
+            max_val = 0
+            width, height = 800, 600
+
+            for i, stat in enumerate(stats[:50]):
+                x = (i * 15) % width
+                y = (i * 30) % height
+                value = stat.size // 1024  # KB
+                max_val = max(max_val, value)
+                points.append({"x": x, "y": y, "value": value})
+
+            data = {"max": max_val, "data": points}
+            await heap_ws.broadcast(data)
+
+            await ws.receive_text()  # keep connection alive
+    except WebSocketDisconnect:
+        heap_ws.disconnect(ws)

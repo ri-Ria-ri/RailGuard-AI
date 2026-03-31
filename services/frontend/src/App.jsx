@@ -1,8 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import "./styles.css";
+import Heatmap from "./Heatmap";
 
 const WS_ALERTS = import.meta.env.VITE_WS_URL || "ws://localhost:8000/ws/alerts";
 const WS_AI = import.meta.env.VITE_WS_AI_RISK_URL || "ws://localhost:8000/ws/ai-risk";
+const WS_HEAP = import.meta.env.VITE_WS_HEAP_URL || "ws://localhost:8000/ws/heap";
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
 
 function useWs(url, onMessage) {
@@ -75,11 +77,73 @@ function AlertsPanel() {
   );
 }
 
+function HeapPanel() {
+  const [heapData, setHeapData] = useState(null);
+
+  // Subscribe to heap WebSocket
+  useWs(WS_HEAP, (msg) => setHeapData(msg));
+
+  return (
+    <div className="card">
+      <h2>Heap Usage Heatmap</h2>
+      <Heatmap data={heapData} />
+    </div>
+  );
+}
+
 export default function App() {
   return (
     <div className="layout">
       <RiskPanel />
       <AlertsPanel />
+      <HeapPanel />
     </div>
   );
 }
+
+import { BrowserRouter as Router, Route, Routes } from "react-router-dom";
+import Home from "./pages/Home";
+import Risk from "./pages/Risk";
+import Camera from "./pages/Camera";
+import Delay from "./pages/Delay";
+import Crowd from "./pages/Crowd";
+import Alerts from "./pages/Alerts";
+import OpenCV from "./pages/OpenCV";
+
+function App() {
+  return (
+    <Router>
+      <Routes>
+        <Route path="/" element={<Home />} />
+        <Route path="/risk" element={<Risk />} />
+        <Route path="/camera" element={<Camera />} />
+        <Route path="/delay" element={<Delay />} />
+        <Route path="/crowd" element={<Crowd />} />
+        <Route path="/alerts" element={<Alerts />} />
+        <Route path="/opencv" element={<OpenCV />} />
+      </Routes>
+    </Router>
+  );
+}
+
+export default App;
+
+import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+
+function App() {
+  return (
+    <Router>
+      <Routes>
+        <Route path="/" element={<Home />} />
+        <Route path="/risk" element={<Risk />} />
+        <Route path="/camera" element={<Camera />} />
+        <Route path="/delay" element={<Delay />} />
+        <Route path="/crowd" element={<Crowd />} />
+        <Route path="/alerts" element={<Alerts />} />
+        <Route path="/opencv" element={<OpenCV />} />
+      </Routes>
+    </Router>
+  );
+}
+
+export default App;
