@@ -7,6 +7,9 @@ from typing import Deque, Dict, Any, Optional, Tuple
 
 from aiokafka import AIOKafkaConsumer, AIOKafkaProducer
 
+from feature_computer import FeatureComputer
+from risk_scorer import ExplainableRiskScorer
+
 BOOTSTRAP = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "kafka:29092")
 ALERT_TOPIC = os.getenv("ALERT_TOPIC", "railguard.alerts")
 CROWD_TOPIC = os.getenv("CROWD_TOPIC", "railguard.crowd.enriched")
@@ -39,64 +42,20 @@ crowd_state: Dict[str, Dict[str, Any]] = {}
 train_state: Dict[str, Dict[str, Any]] = {}
 recent_input_cache: Dict[str, Tuple[str, float]] = {}
 
+_scorer = ExplainableRiskScorer()
+
 
 def now_ms() -> int:
     return int(time.time() * 1000)
 
 
-def severity_to_norm(sev: str) -> float:
-    sev = (sev or "").upper()
-    if sev == "HIGH":
-        return 1.0
-    if sev == "MEDIUM":
-        return 0.6
-    if sev == "LOW":
-        return 0.2
-    return 0.0
-
-
-def risk_score(features: Dict[str, float]) -> float:
-    score = (
-        0.45 * features["crowdNorm"]
-        + 0.25 * features["alertNorm"]
-        + 0.20 * features["delayNorm"]
-        + 0.10 * features["alertRateNorm"]
-    )
-    return max(0.0, min(1.0, score))
-
-
-def risk_level(score: float) -> str:
-    if score < 0.40:
-        return "LOW"
-    if score < 0.75:
-        return "MEDIUM"
-    return "HIGH"
-
-
-def top_factors(features: Dict[str, float]) -> list:
-    contribs = {
-        "crowd": 0.45 * features["crowdNorm"],
-        "alert": 0.25 * features["alertNorm"],
-        "delay": 0.20 * features["delayNorm"],
-        "alertRate": 0.10 * features["alertRateNorm"],
-    }
-    return [
-        {"factor": k, "contribution": round(v, 3)}
-        for k, v in sorted(contribs.items(), key=lambda kv: kv[1], reverse=True)
-    ][:3]
-
-
 def warm_model() -> None:
     # Warm the scoring path once so first live inference avoids cold-start jitter.
-    warm_features = {
-        "crowdNorm": 0.0,
-        "alertNorm": 0.0,
-        "delayNorm": 0.0,
-        "alertRateNorm": 0.0,
-    }
-    score = risk_score(warm_features)
-    _ = risk_level(score)
-    _ = top_factors(warm_features)
+    from collections import deque as _deque
+    warm_features = FeatureComputer.compute_all(_deque(), {}, {}, time.time())
+    score, contribs = _scorer.compute_score(warm_features)
+    _ = _scorer.risk_level(score)
+    _ = _scorer.explain_factors(warm_features, contribs)
 
 
 def zone_for_topic(topic: str, payload: Dict[str, Any]) -> Optional[str]:
@@ -288,38 +247,27 @@ async def run():
 
 async def publish_scores(producer: AIOKafkaProducer):
     zones = set(crowd_state.keys()) | set(alert_window.keys()) | set(train_state.keys())
+    now_ts = time.time()
     for zone in zones:
         alerts = alert_window.get(zone, deque())
         crowd = crowd_state.get(zone, {})
         train = train_state.get(zone, {})
 
-        crowd_norm = min(1.0, (crowd.get("densityPercent") or 0) / 100.0)
-        alert_norm = severity_to_norm(alerts[-1]["severity"]) if alerts else 0.0
-        delay_norm = min(1.0, min(train.get("delayMinutes", 0) or 0, 30) / 30.0)
-        alert_rate_norm = min(1.0, len(alerts) / 10.0)
+        features = FeatureComputer.compute_all(alerts, crowd, train, now_ts)
 
-        features = dict(
-            crowdNorm=crowd_norm,
-            alertNorm=alert_norm,
-            delayNorm=delay_norm,
-            alertRateNorm=alert_rate_norm,
-        )
-
-        score = risk_score(features)
-        level = risk_level(score)
-        factors = top_factors(features)
-        confidence = 0.60 + 0.40 * (
-            sum(1 for v in features.values() if v is not None) / 4.0
-        )
+        score, contributions = _scorer.compute_score(features)
+        level = _scorer.risk_level(score)
+        factors = _scorer.explain_factors(features, contributions)
+        confidence = _scorer.compute_confidence(features)
 
         event = {
             "zoneId": zone,
             "riskScore": round(score, 3),
             "riskLevel": level,
-            "confidence": round(confidence, 3),
+            "confidence": confidence,
             "topFactors": factors,
-            "modelName": "deterministic-weighted",
-            "modelVersion": "1.0.0",
+            "modelName": "explainable-feature-scorer",
+            "modelVersion": "2.0.0",
             "timestamp": now_ms(),
         }
         await producer.send_and_wait(AI_RISK_TOPIC, json.dumps(event).encode("utf-8"))
