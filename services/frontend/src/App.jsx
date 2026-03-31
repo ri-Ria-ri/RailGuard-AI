@@ -325,22 +325,28 @@ const CameraAlertsPanel = memo(function CameraAlertsPanel() {
       {filteredAlerts.length === 0 && <div className="muted">No camera alerts for selected filters.</div>}
       {filteredAlerts.length > 0 && (
         <div className="camera-alerts-viewport">
-          {filteredAlerts.map((a, idx) => (
-            <div key={`${a.id || a.timestamp || "camera"}-${idx}`} className="camera-alert-row">
-              <span className={`pill sev-${(a.severity || "low").toLowerCase()}`}>{a.severity || "LOW"}</span>
-              <div className="alert-body">
-                <div className="alert-line">
-                  <span>{a.message || "Camera event"}</span>
-                  <span className="tag tag-camera">CAMERA</span>
-                  {a.subType && <span className="tag tag-sub">{a.subType}</span>}
-                </div>
-                <div className="muted">
-                  {(a.zoneId || a.stationId) ?? "unknown"}
-                  {a.cameraId ? ` • ${a.cameraId}` : ""}
+          {filteredAlerts.map((a, idx) => {
+            const zone = a.zoneId || a.stationId || "unknown";
+            const cameraNumber =
+              typeof a.cameraId === "string" && a.cameraId.includes("-")
+                ? a.cameraId.split("-").at(-1)
+                : null;
+            const cameraChip = cameraNumber ? `${zone}-${cameraNumber}` : a.cameraId || `${zone}-CAM`;
+
+            return (
+              <div key={`${a.id || a.timestamp || "camera"}-${idx}`} className="camera-alert-row">
+                <span className={`pill sev-${(a.severity || "low").toLowerCase()}`}>{a.severity || "LOW"}</span>
+                <div className="alert-body">
+                  <div className="alert-line">
+                    <span>{a.message || "Camera event"}</span>
+                    <span className="tag tag-camera">{cameraChip}</span>
+                    {a.subType && <span className="tag tag-sub">{a.subType}</span>}
+                  </div>
+                  <div className="muted">{zone}</div>
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
