@@ -17,6 +17,32 @@ Simulator/Ingress → Kafka → FastAPI backend → Postgres + WebSocket → Rea
 - `schemas`: JSON schemas (alerts; extendable for crowd/train/camera).
 - `docs`: Planning notes.
 
+
+                +---------------------+
+                |  GTFS-RT Ingest     |
+                | (TripUpdates, etc.) |
+                +----------+----------+
+                           |
+                           v
++-----------+     +--------+--------+     +--------------------+
+| Simulator |---->|     Kafka       |---->| FastAPI Backend    |
+| alerts    |     | (alerts/crowd/  |     | - Kafka consumers  |
+| crowd     |     |  train/camera)  |     | - REST + WebSocket |
+| train     |     +--------+--------+     | - DLQ handling     |
+| camera    |              |              +---------+----------+
++-----------+              |                        |
+                           |                        v
+                           |                 +-------------+
+                           |                 | PostgreSQL  |
+                           |                 | (persistence)|
+                           |                 +-------------+
+                           |
+                           v
+                   +---------------+
+                   | React Frontend|
+                   | Live dashboard|
+                   +---------------+
+
 ## Getting Started (Docker)
 1) Install Docker Desktop.
 2) From repo root:
