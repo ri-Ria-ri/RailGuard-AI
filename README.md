@@ -1,86 +1,74 @@
 # RailGuard AI
+AI-Powered Railway Surveillance for Safety & Security Monitoring
 
-RailGuard AI is a demo project for railway safety monitoring.
+## What It Does
+- Streams live safety alerts, crowd density, train status, and camera health events through Kafka to a FastAPI backend and a React dashboard.
+- Includes a simulator for alerts/crowd/train/camera events and optional deterministic scenarios.
+- Persists data in PostgreSQL and broadcasts live updates via WebSocket.
 
-It shows how live events move from a simulator to a dashboard in real time.
+## Architecture (high level)
+Simulator/Ingress → Kafka → FastAPI backend → Postgres + WebSocket → React frontend
 
-## What This Project Does
+## Services
+- `services/ingestion/simulator`: Generates alert, crowd, train, and camera events (aiokafka).
+- `services/backend`: FastAPI API + Kafka consumers + WebSocket broadcaster + Postgres persistence.
+- `services/frontend`: React dashboard for live alerts and metrics.
+- `infra`: Docker Compose stack (Kafka, Zookeeper, Postgres, backend, frontend, simulator).
+- `schemas`: JSON schemas (alerts; extendable for crowd/train/camera).
+- `docs`: Planning notes.
 
-This project currently simulates two kinds of live data:
+## Getting Started (Docker)
+1) Install Docker Desktop.
+2) From repo root:
+   ```bash
+   docker compose -f infra/docker-compose.yml up --build
+   ```
+3) Open:
+   - Dashboard: http://localhost:5173
+   - Backend health: http://localhost:8000/health
+   - Alerts API: http://localhost:8000/alerts
+   - Crowd latest: http://localhost:8000/crowd/latest
 
-- Safety alerts (low, medium, high)
-- Crowd density by zone
+## Simulator
+- Default: emits random alerts/crowd/train/camera events every `EVENT_INTERVAL_SECONDS`.
+- Env vars (partial):
+  - `KAFKA_BOOTSTRAP_SERVERS` (default `localhost:9092`)
+  - Topics: `KAFKA_TOPIC` (alerts), `KAFKA_CROWD_TOPIC`, `KAFKA_TRAIN_TOPIC`, `KAFKA_CAMERA_TOPIC`
+  - Camera fault injection: `CAMERA_FAULT_RATE`, `CAMERA_FREEZE_DURATION`
+- To add deterministic scenarios:
+  - Create `configs/scenarios/*.json`.
+  - Run with `SCENARIO_FILE=configs/scenarios/demo.json python services/ingestion/simulator/main.py`.
+- Camera events: publish hashed frames/motion metadata; pair with a watchdog that consumes frames and emits health alerts.
 
-The data flow is:
+## GTFS-RT Ingestion (optional live data)
+- Add a small service `services/ingestion/train_realtime/` to poll TripUpdates/VehiclePositions/Alerts, normalize to the train event shape, and publish to `railguard.trains`.
+- Map GTFS `stop_id` → `zoneId` via `configs/stations_meta.json`.
+- Keep the existing Kafka schema to avoid backend changes, or add fields (`role`, `label`) and update backend DTO/DB accordingly.
 
-Simulator -> Kafka -> Backend API -> Database + WebSocket -> Frontend Dashboard
+## Backend
+- FastAPI service; consumes Kafka topics, stores to Postgres, and streams via WebSocket.
+- Health: `/health`
+- Alerts: `/alerts`
+- Crowd: `/crowd/latest`
+- Extend consumers/DTOs if you add new fields (e.g., train roles, camera health).
 
-## How The Repo Is Organized
+## Frontend
+- React dashboard at port 5173.
+- Renders live alerts; can be extended with train boards, crowd heatmaps, and CCTV health badges.
+- If adding new alert categories (e.g., `CCTV` health), update alert rendering to color/badge them.
 
-Here is what each main folder is for:
+## Data Contracts
+- Alert schema lives in `schemas/alert.schema.json` (draft 2020-12). It currently disallows additional properties; if you emit fields like `category`/`subType`, update the schema or relax `additionalProperties`.
+- Add schemas for `crowd`, `train`, and `camera` events to keep contracts explicit.
 
-- infra: Docker setup for all services (Kafka, Postgres, backend, frontend, simulator)
-- services/backend: FastAPI server (reads Kafka, saves data, serves APIs and WebSockets)
-- services/frontend: React dashboard (shows live alerts)
-- services/ingestion/simulator: Python event generator (publishes alert and crowd events)
-- schemas: JSON schema files for event formats
-- docs: architecture and planning documents
+## Development Notes
+- Python 3.11 recommended locally; some packages may fail on 3.14 (see README note).
+- Kafka producers use lz4 compression and DLQ topics (`railguard.*.dlq`).
+- Heartbeat file for simulator: `/tmp/simulator_heartbeat`.
 
-## What Is Already Working
-
-- Docker-based startup for the full stack
-- Backend health endpoint
-- Alerts API and alerts WebSocket
-- Crowd latest API
-- Simulator publishing alert and crowd events
-- Data persistence in PostgreSQL
-
-## Quick Start (Recommended)
-
-If you are new to coding, use Docker. It is the easiest path.
-
-1. Install Docker Desktop.
-2. Open a terminal in the project root.
-3. Run:
-
-```bash
-docker compose -f infra/docker-compose.yml up --build
-```
-
-4. Open these in your browser:
-
-- Dashboard: http://localhost:5173
-- Backend health: http://localhost:8000/health
-- Alerts API: http://localhost:8000/alerts
-- Crowd API: http://localhost:8000/crowd/latest
-
-## Important Setup Note (Simple Version)
-
-Use Docker unless you specifically need local Python setup.
-
-Reason: local Python 3.14 can fail to install some packages used by this project.
-
-If you run backend locally, use Python 3.11.
-
-## What Still Needs To Be Built
-
-This repo is a strong base, but it is not the final product yet.
-
-Main things still to build:
-
-- Full UI panels (map, train status board, camera feed panel)
-- Train status event pipeline (producer + backend endpoint + UI panel)
-- Better crowd visualization in frontend
-- Real model inference workers (replace random simulator values)
-- Authentication and user roles
-- Notifications and alert routing
-- Tests (unit and integration)
-- Production hardening (monitoring, retries, security)
-
-## Simple Development Goal
-
-Think of this repository as a working foundation.
-
-You can already run and demo live data flow.
-
-Next, build feature panels one by one on top of this base.
+## Roadmap / Next Steps
+- UI panels: train status board, crowd heatmap, CCTV health overlay.
+- Real model inference workers (replace random simulator values).
+- Authentication/roles, notifications/alert routing, monitoring/metrics.
+- Add schemas for crowd/train/camera, and align casing (`zoneId` vs `zone_id`).
+- Production hardening: retries, backpressure, observability.
