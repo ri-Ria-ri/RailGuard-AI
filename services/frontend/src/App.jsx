@@ -211,6 +211,8 @@ const AlertsPanel = memo(function AlertsPanel() {
 /* ---------- CAMERA ALERTS (dedicated operational panel) ---------- */
 const CameraAlertsPanel = memo(function CameraAlertsPanel() {
   const [cameraAlerts, setCameraAlerts] = useState([]);
+  const [typeFilter, setTypeFilter] = useState("all");
+  const [timeFilter, setTimeFilter] = useState("all");
 
   const isCameraAlert = useCallback((a) => {
     if (!a) return false;
@@ -247,16 +249,83 @@ const CameraAlertsPanel = memo(function CameraAlertsPanel() {
     return () => clearInterval(id);
   }, [isCameraAlert]);
 
+  const filteredAlerts = useMemo(() => {
+    const now = Date.now();
+    return cameraAlerts.filter((a) => {
+      const subType = String(a.subType || "").toLowerCase();
+
+      if (typeFilter === "frozen" && subType !== "camera_frozen") {
+        return false;
+      }
+      if (typeFilter === "offline" && subType !== "camera_offline") {
+        return false;
+      }
+
+      if (timeFilter === "5m") {
+        const ts = Date.parse(a.timestamp || "");
+        if (Number.isNaN(ts)) {
+          return false;
+        }
+        if (now - ts > 5 * 60 * 1000) {
+          return false;
+        }
+      }
+
+      return true;
+    });
+  }, [cameraAlerts, typeFilter, timeFilter]);
+
   return (
     <div className="card card-camera">
       <div className="card-title-row">
         <div className="card-title">Camera Alerts</div>
-        <span className="camera-count">{cameraAlerts.length}</span>
+        <span className="camera-count">{filteredAlerts.length}</span>
       </div>
-      {cameraAlerts.length === 0 && <div className="muted">No camera alerts yet.</div>}
-      {cameraAlerts.length > 0 && (
+      <div className="camera-filters">
+        <div className="filter-group">
+          <button
+            type="button"
+            className={`filter-chip ${typeFilter === "all" ? "active" : ""}`}
+            onClick={() => setTypeFilter("all")}
+          >
+            All
+          </button>
+          <button
+            type="button"
+            className={`filter-chip ${typeFilter === "frozen" ? "active" : ""}`}
+            onClick={() => setTypeFilter("frozen")}
+          >
+            Only Frozen
+          </button>
+          <button
+            type="button"
+            className={`filter-chip ${typeFilter === "offline" ? "active" : ""}`}
+            onClick={() => setTypeFilter("offline")}
+          >
+            Only Offline
+          </button>
+        </div>
+        <div className="filter-group">
+          <button
+            type="button"
+            className={`filter-chip ${timeFilter === "all" ? "active" : ""}`}
+            onClick={() => setTimeFilter("all")}
+          >
+            All time
+          </button>
+          <button
+            type="button"
+            className={`filter-chip ${timeFilter === "5m" ? "active" : ""}`}
+            onClick={() => setTimeFilter("5m")}
+          >
+            Last 5m
+          </button>
+        </div>
+      </div>
+      {filteredAlerts.length === 0 && <div className="muted">No camera alerts for selected filters.</div>}
+      {filteredAlerts.length > 0 && (
         <div className="camera-alerts-viewport">
-          {cameraAlerts.map((a, idx) => (
+          {filteredAlerts.map((a, idx) => (
             <div key={`${a.id || a.timestamp || "camera"}-${idx}`} className="camera-alert-row">
               <span className={`pill sev-${(a.severity || "low").toLowerCase()}`}>{a.severity || "LOW"}</span>
               <div className="alert-body">
