@@ -61,6 +61,33 @@ Simulator/Ingress → Kafka → FastAPI backend → Postgres + WebSocket → Rea
 - Alert schema lives in `schemas/alert.schema.json` (draft 2020-12). It currently disallows additional properties; if you emit fields like `category`/`subType`, update the schema or relax `additionalProperties`.
 - Add schemas for `crowd`, `train`, and `camera` events to keep contracts explicit.
 
+flowchart LR
+    subgraph Ingestion
+        SIM[Simulator\n(alerts/crowd/train/camera)]
+        GTFS[GTFS-RT Ingest\n(trip updates/vehicles/alerts)\n(optional)]
+    end
+
+    subgraph Streaming
+        KFK[(Kafka Broker)]
+        DLQ[(DLQ Topics)]
+    end
+
+    subgraph Backend
+        API[FastAPI Service\nKafka consumers + REST + WebSocket]
+        DB[(PostgreSQL)]
+    end
+
+    subgraph Frontend
+        UI[React Dashboard\nAlerts | Crowd | Trains | CCTV Health]
+    end
+
+    SIM -->|alerts/crowd/train/camera| KFK
+    GTFS -->|train live data| KFK
+    KFK -->|consume| API
+    API --> DB
+    API -->|WebSocket + REST| UI
+    KFK --> DLQ
+
 ## Development Notes
 - Python 3.11 recommended locally; some packages may fail on 3.14 (see README note).
 - Kafka producers use lz4 compression and DLQ topics (`railguard.*.dlq`).
