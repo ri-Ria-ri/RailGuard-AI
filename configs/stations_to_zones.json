@@ -1,0 +1,23 @@
+{
+  "stop_id": {
+    "PF1": "ZONE-A",
+    "PF2": "ZONE-B",
+    "PF3": "ZONE-C",
+    "ENTRYA": "ZONE-A",
+    "ENTRYB": "ZONE-B",
+    "NDLS": "ZONE-B",
+    "MMCT": "ZONE-A",
+    "BRC": "ZONE-C",
+    "701N": "ZONE-B",
+    "701S": "ZONE-C"
+  },
+  "station_name": {
+    "new delhi": "ZONE-B",
+    "mumbai csmt": "ZONE-A",
+    "vadodara": "ZONE-A",
+    "kota": "ZONE-B",
+    "kanpur": "ZONE-B",
+    "bhopal": "ZONE-C",
+    "nagpur": "ZONE-C"
+  }
+}

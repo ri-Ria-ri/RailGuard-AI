@@ -83,6 +83,31 @@ services:
       retries: 3
       start_period: 20s
 
+  train-realtime:
+    build:
+      context: ..
+      dockerfile: services/ingestion/train_realtime/Dockerfile
+    depends_on:
+      - kafka
+    restart: unless-stopped
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      KAFKA_TRAIN_TOPIC: railguard.trains
+      KAFKA_TRAINS_DLQ_TOPIC: railguard.trains.dlq
+      PRODUCER_LINGER_MS: "10"
+      PRODUCER_BATCH_SIZE: "65536"
+      PRODUCER_COMPRESSION_TYPE: "lz4"
+      STATIONS_MAP_FILE: /app/configs/stations_to_zones.json
+      TRAIN_POINTS_CONFIG_FILE: /app/configs/train_points_config.json
+      HEARTBEAT_FILE: /tmp/train_realtime_heartbeat
+      EVENT_INTERVAL_SECONDS: "2"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import os,time,sys; p='/tmp/train_realtime_heartbeat'; sys.exit(0 if os.path.exists(p) and time.time()-os.path.getmtime(p)<45 else 1)"]
+      interval: 20s
+      timeout: 5s
+      retries: 3
+      start_period: 25s
+
   yolo-service:
     build:
       context: ../services/ml/yolo-service

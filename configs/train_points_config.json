@@ -1,0 +1,118 @@
+{
+  "stop_id": {
+    "MMCT": {
+      "phase": "entry",
+      "pointType": "origin_terminal",
+      "pointLabel": "Mumbai CSMT - Origin Terminal"
+    },
+    "NDLS": {
+      "phase": "rest",
+      "pointType": "major_city_station",
+      "pointLabel": "New Delhi - Major Junction"
+    },
+    "BRC": {
+      "phase": "rest",
+      "pointType": "junction_point",
+      "pointLabel": "Vadodara - Junction Point"
+    },
+    "KOA": {
+      "phase": "rest",
+      "pointType": "suburban_regional_stop",
+      "pointLabel": "Kota - Regional Stop"
+    },
+    "CNB": {
+      "phase": "rest",
+      "pointType": "suburban_regional_stop",
+      "pointLabel": "Kanpur - Regional Stop"
+    },
+    "BPL": {
+      "phase": "rest",
+      "pointType": "suburban_regional_stop",
+      "pointLabel": "Bhopal - Regional Stop"
+    },
+    "NGP": {
+      "phase": "exit",
+      "pointType": "terminus_end_station",
+      "pointLabel": "Nagpur - Terminus"
+    },
+    "701N": {
+      "phase": "entry",
+      "pointType": "junction_point",
+      "pointLabel": "North Junction - Entry Point"
+    },
+    "701S": {
+      "phase": "exit",
+      "pointType": "branch_line_divergence",
+      "pointLabel": "Branch Line Divergence - South"
+    },
+    "PF1": {
+      "phase": "rest",
+      "pointType": "platform_stop",
+      "pointLabel": "Platform 1"
+    },
+    "PF2": {
+      "phase": "rest",
+      "pointType": "platform_stop",
+      "pointLabel": "Platform 2"
+    },
+    "PF3": {
+      "phase": "rest",
+      "pointType": "platform_stop",
+      "pointLabel": "Platform 3"
+    }
+  },
+  "station_name": {
+    "mumbai csmt": {
+      "phase": "entry",
+      "pointType": "origin_terminal",
+      "pointLabel": "Mumbai CSMT - Origin Terminal"
+    },
+    "vadodara": {
+      "phase": "rest",
+      "pointType": "junction_point",
+      "pointLabel": "Vadodara - Junction"
+    },
+    "kota": {
+      "phase": "rest",
+      "pointType": "suburban_regional_stop",
+      "pointLabel": "Kota - Regional Stop"
+    },
+    "new delhi": {
+      "phase": "rest",
+      "pointType": "major_city_station",
+      "pointLabel": "New Delhi - Major Junction"
+    },
+    "kanpur": {
+      "phase": "rest",
+      "pointType": "suburban_regional_stop",
+      "pointLabel": "Kanpur - Regional Stop"
+    },
+    "bhopal": {
+      "phase": "rest",
+      "pointType": "suburban_regional_stop",
+      "pointLabel": "Bhopal - Regional Stop"
+    },
+    "nagpur": {
+      "phase": "exit",
+      "pointType": "terminus_end_station",
+      "pointLabel": "Nagpur - Terminus"
+    }
+  },
+  "stop_id_suffix": {
+    "N": {
+      "phase": "entry",
+      "pointType": "junction_point",
+      "pointLabel": "North Junction - Entry Point"
+    },
+    "S": {
+      "phase": "exit",
+      "pointType": "branch_line_divergence",
+      "pointLabel": "Branch Line Divergence"
+    }
+  },
+  "defaults": {
+    "phase": "rest",
+    "pointType": "suburban_regional_stop",
+    "pointLabel": "Suburban/Regional Stop"
+  }
+}
