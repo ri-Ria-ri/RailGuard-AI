@@ -231,8 +231,8 @@ const RiskPanel = memo(function RiskPanel() {
           </div>
           <div className="factors">
             {r.topFactors?.map((f, i) => (
-              <span key={i} className="factor">
-                {f.factor}: {(f.contribution * 100).toFixed(0)}%
+              <span key={i} className="factor" title={f.interpretation || undefined}>
+                {f.interpretation || `${f.factor}: ${(f.contribution * 100).toFixed(0)}%`}
               </span>
             ))}
           </div>
