@@ -40,7 +40,6 @@ class RiskResponse(BaseModel):
     modelName: str
     modelVersion: str
     timestamp: int
-    interpretation: str = ""
 
 # WebSocket managers
 class ConnectionManager:
@@ -118,17 +117,6 @@ async def handle_train(val: Dict[str, Any]):
 
 async def handle_ai_risk(val: Dict[str, Any]):
     zone = val.get("zoneId") or "unknown"
-    # Build a human-readable summary from the top factors.
-    factors = val.get("topFactors") or []
-    if factors:
-        parts = [
-            f.get("interpretation")
-            or f"{f.get('factor')}: {round((f.get('contribution') or 0) * 100)}%"
-            for f in factors
-        ]
-        val.setdefault("interpretation", "; ".join(parts))
-    else:
-        val.setdefault("interpretation", "")
     latest_ai_risk[zone] = val
     await ai_ws.broadcast(json.dumps(val))
     if db_pool:
