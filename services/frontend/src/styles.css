@@ -64,6 +64,7 @@ body {
   justify-content: space-between;
   margin-bottom: 10px;
 }
+.section-count,
 .camera-count {
   display: inline-flex;
   align-items: center;
@@ -79,7 +80,8 @@ body {
   font-size: 11px;
   font-weight: 700;
 }
-.camera-filters {
+.camera-filters,
+.panel-filters {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
@@ -108,6 +110,15 @@ body {
   border-color: #60a5fa;
   background: #0b2f63;
   color: #eff6ff;
+}
+.filter-select {
+  border: 1px solid #27466d;
+  background: #0b1e35;
+  color: #dbeafe;
+  border-radius: 8px;
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 600;
 }
 
 /* Rows */
@@ -184,6 +195,11 @@ body {
   border-color: #0369a1;
   background: #082f49;
   color: #bae6fd;
+}
+.tag-flow {
+  border-color: #0e7490;
+  background: #083344;
+  color: #a5f3fc;
 }
 .pill { border-radius:999px; padding:3px 10px; font-size:11px; font-weight:700; font-family: var(--mono); }
 .sev-low { background:#14532d; color:#bbf7d0; }

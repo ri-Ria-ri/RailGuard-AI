@@ -1,0 +1,180 @@
+{
+  "scenarioName": "Morning Peak ZONE-B Surge",
+  "timeOfDay": "morning",
+  "durationSeconds": 240,
+  "baseCrowdShift": 4,
+  "baseDensityByZone": {
+    "ZONE-B": 30,
+    "ZONE-A": 24,
+    "ZONE-C": 22
+  },
+  "events": [
+    {
+      "t": 0,
+      "type": "crowd",
+      "zoneId": "ZONE-B",
+      "densityPercent": 34,
+      "personCount": 58,
+      "crowdClass": "NORMAL"
+    },
+    {
+      "t": 10,
+      "type": "train",
+      "zoneId": "ZONE-B",
+      "trainNumber": "12951",
+      "trainName": "Mumbai Rajdhani",
+      "route": "Mumbai -> Delhi",
+      "currentStation": "New Delhi",
+      "nextStation": "Kanpur",
+      "etaMinutes": 6,
+      "delayMinutes": 2,
+      "direction": "incoming",
+      "kavachStatus": "ACTIVE"
+    },
+    {
+      "t": 30,
+      "type": "crowd",
+      "zoneId": "ZONE-B",
+      "densityPercent": 49,
+      "personCount": 84,
+      "crowdClass": "NORMAL"
+    },
+    {
+      "t": 30,
+      "type": "alert",
+      "zoneId": "ZONE-B",
+      "source": "rtis",
+      "severity": "MEDIUM",
+      "category": "TRAIN_OPS",
+      "subType": "signal_fault",
+      "riskScore": 0.58,
+      "message": "Train 12951 +6 min due to signal fault",
+      "messageVariants": [
+        "Train 12951 +6 min due to signal fault",
+        "Train 12951 delayed by 6 min after signal interlock glitch",
+        "Signal fault: Train 12951 now running +6 min"
+      ],
+      "topFactors": [
+        {"feature": "crowd_density", "impact": 0.54},
+        {"feature": "train_arrival_eta", "impact": 0.78},
+        {"feature": "platform_temperature", "impact": 0.12}
+      ]
+    },
+    {
+      "t": 45,
+      "type": "train",
+      "zoneId": "ZONE-B",
+      "trainNumber": "12951",
+      "trainName": "Mumbai Rajdhani",
+      "route": "Mumbai -> Delhi",
+      "currentStation": "New Delhi",
+      "nextStation": "Kanpur",
+      "etaMinutes": 10,
+      "delayMinutes": 6,
+      "direction": "incoming",
+      "kavachStatus": "DEGRADED"
+    },
+    {
+      "t": 60,
+      "type": "crowd",
+      "zoneId": "ZONE-B",
+      "densityPercent": 63,
+      "personCount": 108,
+      "crowdClass": "CROWDED"
+    },
+    {
+      "t": 90,
+      "type": "camera_control",
+      "zoneId": "ZONE-B",
+      "cameraId": "CAM-B-001",
+      "action": "freeze",
+      "durationFrames": 25
+    },
+    {
+      "t": 90,
+      "type": "alert",
+      "zoneId": "ZONE-B",
+      "source": "cctv",
+      "severity": "MEDIUM",
+      "category": "CCTV",
+      "subType": "camera_blur",
+      "riskScore": 0.62,
+      "message": "Platform camera CAM-B-001 image quality degraded",
+      "messageVariants": [
+        "Platform camera CAM-B-001 image quality degraded",
+        "Blur detected on CAM-B-001 during platform surge",
+        "Video quality warning: CAM-B-001 appears blurred"
+      ]
+    },
+    {
+      "t": 120,
+      "type": "crowd",
+      "zoneId": "ZONE-B",
+      "densityPercent": 86,
+      "personCount": 146,
+      "crowdClass": "CRITICAL"
+    },
+    {
+      "t": 120,
+      "type": "alert",
+      "zoneId": "ZONE-B",
+      "source": "iot",
+      "severity": "HIGH",
+      "category": "PASSENGER",
+      "subType": "platform_overcrowding",
+      "riskScore": 0.88,
+      "message": "Critical crowding at ZONE-B, activate marshals",
+      "messageVariants": [
+        "Critical crowding at ZONE-B, activate marshals",
+        "ZONE-B density breach: dispatch crowd marshals now",
+        "Overcrowding HIGH at ZONE-B, gate flow control enabled"
+      ]
+    },
+    {
+      "t": 150,
+      "type": "train",
+      "zoneId": "ZONE-B",
+      "trainNumber": "12951",
+      "trainName": "Mumbai Rajdhani",
+      "route": "Mumbai -> Delhi",
+      "currentStation": "Kanpur",
+      "nextStation": "Bhopal",
+      "etaMinutes": 14,
+      "delayMinutes": 11,
+      "direction": "outgoing",
+      "kavachStatus": "ACTIVE"
+    },
+    {
+      "t": 180,
+      "type": "crowd",
+      "zoneId": "ZONE-B",
+      "densityPercent": 68,
+      "personCount": 112,
+      "crowdClass": "CROWDED"
+    },
+    {
+      "t": 210,
+      "type": "crowd",
+      "zoneId": "ZONE-B",
+      "densityPercent": 46,
+      "personCount": 78,
+      "crowdClass": "NORMAL"
+    },
+    {
+      "t": 220,
+      "type": "alert",
+      "zoneId": "ZONE-B",
+      "source": "rtis",
+      "severity": "LOW",
+      "category": "TRAIN_OPS",
+      "subType": "delay_recovery",
+      "riskScore": 0.32,
+      "message": "Train 12951 delay recovering, ETA normalizing",
+      "messageVariants": [
+        "Train 12951 delay recovering, ETA normalizing",
+        "Service update: 12951 moving back toward schedule",
+        "Delay recovery in progress for 12951"
+      ]
+    }
+  ]
+}
