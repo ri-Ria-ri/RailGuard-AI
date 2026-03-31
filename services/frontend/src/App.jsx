@@ -15,6 +15,7 @@ const MAX_RISK_ZONES = 100;
 const ALERT_ROW_HEIGHT = 76;
 const ALERT_VIEWPORT_HEIGHT = 360;
 const ALERT_OVERSCAN_ROWS = 4;
+let _alertIdSeq = 0;
 
 function useBufferedWs(url, onBatch, flushMs = WS_FLUSH_MS) {
   useEffect(() => {
@@ -249,23 +250,34 @@ const AlertsPanel = memo(function AlertsPanel() {
   const [severityFilter, setSeverityFilter] = useState("all");
 
   const handleAlertBatch = useCallback((batch) => {
+    if (!Array.isArray(batch) || batch.length === 0) {
+      console.debug("[AlertsPanel] Empty batch received");
+      return;
+    }
+    console.debug(`[AlertsPanel] Processing ${batch.length} alerts`);
     setAlerts((prev) => {
-      const next = { ...prev };
-      for (const alert of batch) {
-        const zone = alert.zoneId || alert.stationId;
-        if (!zone) {
-          continue;
+      try {
+        const next = { ...prev };
+        for (const alert of batch) {
+          const zone = alert.zoneId || alert.stationId;
+          if (!zone) {
+            continue;
+          }
+          const alertId = alert.id || `${zone}-${alert.timestamp ?? ++_alertIdSeq}`;
+          next[alertId] = { ...alert, _id: alertId, _zone: zone, _ts: alert.timestamp || Date.now() };
         }
-        next[zone] = { ...alert, _id: zone };
+        const trimmed = Object.values(next)
+          .sort((a, b) => (b._ts ?? 0) - (a._ts ?? 0))
+          .slice(0, MAX_ALERTS)
+          .reduce((acc, item) => {
+            acc[item._id] = item;
+            return acc;
+          }, {});
+        return trimmed;
+      } catch (e) {
+        console.error("[AlertsPanel] Error processing alerts:", e);
+        return prev;
       }
-      const trimmed = Object.values(next)
-        .sort((a, b) => (b.timestamp ?? 0) - (a.timestamp ?? 0))
-        .slice(0, MAX_ALERTS)
-        .reduce((acc, item) => {
-          acc[item._id] = item;
-          return acc;
-        }, {});
-      return trimmed;
     });
   }, []);
 
@@ -341,7 +353,7 @@ const AlertsPanel = memo(function AlertsPanel() {
         >
           {topSpacer > 0 && <div className="alert-spacer" style={{ height: topSpacer }} />}
           {visibleAlerts.map((a, idx) => (
-            <div key={`${a._id}`} className="alert-row">
+            <div key={a._id} className="alert-row">
               <span className={`pill sev-${(a.severity || "low").toLowerCase()}`}>{a.severity || "LOW"}</span>
               <div className="alert-body">
                 <div className="alert-line">
